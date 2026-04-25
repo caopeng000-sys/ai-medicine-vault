@@ -8,6 +8,7 @@ This project uses a small, opinionated Next.js stack so future features can foll
 - Route components use `.tsx`; shared helpers and feature data use `.ts`.
 - Keep `strict` TypeScript enabled and avoid `any` unless a third-party boundary forces it.
 - New shadcn/ui components should be generated as TSX through `components.json` with `"tsx": true`.
+- User-facing repository documents and Git commit messages should be written in Chinese.
 
 ## Default Skills
 
