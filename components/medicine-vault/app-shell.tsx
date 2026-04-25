@@ -1,70 +1,188 @@
+"use client"
+
 import {
+  BellIcon,
   BotIcon,
+  ChevronDownIcon,
   ClipboardListIcon,
   FileTextIcon,
   HeartPulseIcon,
+  HelpCircleIcon,
   LayoutDashboardIcon,
+  LineChartIcon,
   PillIcon,
+  SearchIcon,
+  SettingsIcon,
   ShieldAlertIcon,
+  SparklesIcon,
   UsersIcon,
 } from "lucide-react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import type { ReactNode } from "react"
 
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { cn } from "@/lib/utils"
 
-const navigationItems = [
-  { href: "/", label: "工作台", icon: LayoutDashboardIcon },
-  { href: "/members", label: "成员", icon: UsersIcon },
-  { href: "/records", label: "病历", icon: FileTextIcon },
-  { href: "/medicines", label: "药品", icon: PillIcon },
-  { href: "/allergies", label: "过敏", icon: ShieldAlertIcon },
+const primaryNavigation = [
+  { href: "/", label: "首页", icon: LayoutDashboardIcon },
+  { href: "/records", label: "病历记录", icon: FileTextIcon },
+  { href: "/medicines", label: "用药管理", icon: PillIcon },
+  { href: "/assistant", label: "就医助手", icon: BotIcon },
+  { href: "/members", label: "健康档案", icon: UsersIcon },
+]
+
+const secondaryNavigation = [
   { href: "/visit-prep", label: "就医准备", icon: ClipboardListIcon },
-  { href: "/assistant", label: "AI 助手", icon: BotIcon },
+  { href: "/allergies", label: "风险提醒", icon: ShieldAlertIcon },
+]
+
+const utilityNavigation = [
+  { href: "/records", label: "数据分析", icon: LineChartIcon },
+  { href: "/assistant", label: "系统设置", icon: SettingsIcon },
 ]
 
 export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
+  const pathname = usePathname()
+
   return (
-    <div className="min-h-screen bg-[linear-gradient(135deg,var(--background)_0%,oklch(0.96_0.017_210)_48%,oklch(0.98_0.012_80)_100%)]">
-      <div className="mx-auto grid min-h-screen w-full max-w-[1440px] lg:grid-cols-[280px_1fr]">
-        <aside className="border-b bg-background/85 px-4 py-4 backdrop-blur lg:border-b-0 lg:border-r lg:px-5 lg:py-6">
-          <div className="flex items-center gap-3 lg:flex-col lg:items-stretch">
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f8fcfd_0%,#eef7f8_52%,#f7fbfb_100%)]">
+      <div className="mx-auto grid min-h-screen w-full max-w-[1440px] lg:grid-cols-[240px_1fr]">
+        <aside className="border-b border-white/70 bg-white/82 px-4 py-5 backdrop-blur lg:flex lg:flex-col lg:border-r lg:border-b-0 lg:px-6 lg:py-7">
+          <div className="flex items-center gap-3">
             <Link className="flex min-w-0 items-center gap-3" href="/">
-              <span className="flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <HeartPulseIcon aria-hidden="true" />
+              <span className="flex size-11 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-sm">
+                <HeartPulseIcon aria-hidden="true" className="size-5" />
               </span>
               <span className="grid min-w-0">
-                <span className="truncate text-base font-semibold">AI Medicine Vault</span>
-                <span className="truncate text-xs text-muted-foreground">个人健康知识库</span>
+                <span className="truncate text-[1.05rem] font-semibold text-slate-950">MedRecord</span>
+                <span className="truncate text-xs text-slate-500">家庭健康资料台</span>
               </span>
             </Link>
-            <Badge className="ml-auto lg:ml-0 lg:w-fit" variant="outline">
-              MVP 原型
+
+            <Badge className="ml-auto rounded-full border-emerald-100 bg-emerald-50 px-2.5 py-1 text-emerald-600 lg:hidden" variant="outline">
+              原型
             </Badge>
           </div>
 
-          <Separator className="my-4 hidden lg:block" />
+          <nav className="mt-6 flex gap-2 overflow-x-auto pb-1 lg:grid lg:gap-1 lg:overflow-visible lg:pb-0">
+            {primaryNavigation.map((item) => {
+              const active = pathname === item.href
 
-          <nav className="mt-4 flex gap-2 overflow-x-auto pb-1 lg:mt-0 lg:grid lg:overflow-visible lg:pb-0">
-            {navigationItems.map((item) => (
-              <Link
-                className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground lg:w-full"
-                href={item.href}
-                key={item.href}
-              >
-                <item.icon aria-hidden="true" className="size-4" />
-                {item.label}
-              </Link>
-            ))}
+              return (
+                <Link
+                  className={cn(
+                    "inline-flex min-h-11 shrink-0 items-center gap-3 rounded-2xl px-4 text-sm font-medium transition-all lg:w-full",
+                    active
+                      ? "bg-emerald-50 text-emerald-700 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.14)]"
+                      : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                  )}
+                  href={item.href}
+                  key={item.href}
+                >
+                  <item.icon aria-hidden="true" className="size-4" />
+                  {item.label}
+                </Link>
+              )
+            })}
           </nav>
 
-          <div className="mt-6 hidden rounded-lg border bg-card p-4 text-sm leading-6 text-muted-foreground lg:block">
-            当前阶段先用 mock 数据验证产品体验，不接真实医疗判断。
+          <div className="mt-5 hidden lg:block">
+            <p className="px-4 text-xs font-medium tracking-wide text-slate-400">辅助模块</p>
+            <div className="mt-2 grid gap-1">
+              {secondaryNavigation.map((item) => {
+                const active = pathname === item.href
+
+                return (
+                  <Link
+                    className={cn(
+                      "inline-flex min-h-10 items-center gap-3 rounded-2xl px-4 text-sm font-medium transition-all",
+                      active
+                        ? "bg-emerald-50 text-emerald-700"
+                        : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                    )}
+                    href={item.href}
+                    key={item.href}
+                  >
+                    <item.icon aria-hidden="true" className="size-4" />
+                    {item.label}
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="mt-5 hidden lg:block">
+            <p className="px-4 text-xs font-medium tracking-wide text-slate-400">更多功能</p>
+            <div className="mt-2 grid gap-1">
+              {utilityNavigation.map((item) => (
+                <Link
+                  className="inline-flex min-h-10 items-center gap-3 rounded-2xl px-4 text-sm font-medium text-slate-500 transition-all hover:bg-slate-50 hover:text-slate-900"
+                  href={item.href}
+                  key={item.label}
+                >
+                  <item.icon aria-hidden="true" className="size-4" />
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-6 hidden lg:block lg:flex-1" />
+
+          <div className="mt-6 hidden rounded-[28px] border border-slate-100 bg-[linear-gradient(180deg,#f8fbff_0%,#f3f8ff_100%)] p-5 shadow-[0_14px_50px_rgba(15,23,42,0.06)] lg:block">
+            <div className="flex size-14 items-center justify-center rounded-2xl bg-white shadow-sm">
+              <SparklesIcon aria-hidden="true" className="size-6 text-emerald-500" />
+            </div>
+            <p className="mt-4 text-sm font-semibold text-slate-900">MVP 原型阶段</p>
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              先把病历、药品、过敏和就医准备的信息架构跑通，再逐步接入数据库与 AI。
+            </p>
+            <Button className="mt-4 w-full rounded-2xl bg-emerald-500 text-white hover:bg-emerald-600">
+              查看规划
+            </Button>
           </div>
         </aside>
 
-        <main className="min-w-0 px-5 py-6 md:px-8 lg:px-10 lg:py-8">{children}</main>
+        <div className="min-w-0">
+          <header className="sticky top-0 z-20 border-b border-white/70 bg-white/76 px-5 py-4 backdrop-blur md:px-8 lg:px-10">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                <SearchIcon className="size-4 text-slate-400" aria-hidden="true" />
+                <Input
+                  className="border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+                  placeholder="搜索药品、病历、成员或就医问题..."
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Button className="rounded-2xl border-slate-200 bg-white text-slate-500 hover:bg-slate-50" size="icon" variant="outline">
+                    <BellIcon className="size-4" aria-hidden="true" />
+                  </Button>
+                  <Button className="rounded-2xl border-slate-200 bg-white text-slate-500 hover:bg-slate-50" size="icon" variant="outline">
+                    <HelpCircleIcon className="size-4" aria-hidden="true" />
+                  </Button>
+                </div>
+
+                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                  <span className="flex size-10 items-center justify-center rounded-full bg-gradient-to-br from-slate-900 to-slate-700 text-sm font-semibold text-white">
+                    CP
+                  </span>
+                  <div className="hidden sm:block">
+                    <p className="text-sm font-medium text-slate-900">曹鹏</p>
+                    <p className="text-xs text-slate-500">产品原型负责人</p>
+                  </div>
+                  <ChevronDownIcon className="size-4 text-slate-400" aria-hidden="true" />
+                </div>
+              </div>
+            </div>
+          </header>
+
+          <main className="min-w-0 px-5 py-6 md:px-8 lg:px-10 lg:py-8">{children}</main>
+        </div>
       </div>
     </div>
   )
