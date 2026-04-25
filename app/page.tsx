@@ -1,48 +1,139 @@
-import { ArrowRightIcon, FilePlus2Icon, PillIcon } from "lucide-react"
+import {
+  ArrowRightIcon,
+  ClipboardListIcon,
+  FilePlus2Icon,
+  PillIcon,
+  ShieldAlertIcon,
+  UsersIcon,
+} from "lucide-react"
+import Link from "next/link"
 
+import { PageHeader } from "@/components/medicine-vault/page-header"
 import { VaultPreview } from "@/components/medicine-vault/vault-preview"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
+  allergyRecords,
+  medicalRecords,
+  medicines,
+  members,
+  visitPreparations,
+} from "@/features/medicine-vault/data"
+
+const quickActions = [
+  { href: "/members", label: "管理成员", icon: UsersIcon },
+  { href: "/records", label: "新增病历", icon: FilePlus2Icon },
+  { href: "/medicines", label: "录入药品", icon: PillIcon },
+  { href: "/visit-prep", label: "生成就医清单", icon: ClipboardListIcon },
+]
+
+const statCards = [
+  { label: "家庭成员", value: members.length, description: "已建立健康档案" },
+  { label: "病历记录", value: medicalRecords.length, description: "按时间线整理" },
+  { label: "药品条目", value: medicines.length, description: "含有效期状态" },
+  { label: "过敏记录", value: allergyRecords.length, description: "就医前优先提示" },
+]
 
 export default function Home() {
+  const latestRecord = medicalRecords.toSorted((a, b) => b.visitedAt.localeCompare(a.visitedAt))[0]
+  const activePreparation = visitPreparations[0]
+
   return (
-    <main className="min-h-screen bg-[linear-gradient(135deg,var(--background)_0%,oklch(0.96_0.017_210)_48%,oklch(0.98_0.012_80)_100%)]">
-      <section className="mx-auto grid min-h-screen w-full max-w-7xl items-center gap-10 px-5 py-10 md:px-8 lg:grid-cols-[0.92fr_1.08fr] lg:py-16">
-        <div className="grid gap-6">
-          <Badge className="w-fit" variant="outline">
-            MediVault AI
-          </Badge>
-          <div className="grid gap-5">
-            <h1 className="max-w-3xl text-4xl font-semibold leading-tight tracking-normal text-balance sm:text-5xl lg:text-6xl">
-              面向个人健康知识库的 AI 药品收集管理平台。
-            </h1>
-            <p className="max-w-2xl text-base leading-8 text-muted-foreground sm:text-lg">
-              把病历、用药记录、家中药品和个人知识库放在一个地方。生病时先快速回看自己的历史记录，
-              再整理出可以带给医生或药师确认的问题清单。
+    <div className="grid gap-6">
+      <PageHeader
+        action={
+          <Button asChild size="lg">
+            <Link href="/visit-prep">
+              <ClipboardListIcon data-icon="inline-start" />
+              就医准备
+            </Link>
+          </Button>
+        }
+        description="集中管理病历、药品、过敏史和就医前资料，让 AI 先做资料整理，不替代医生判断。"
+        title="健康资料工作台"
+      />
+
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {statCards.map((item) => (
+          <Card key={item.label}>
+            <CardHeader>
+              <CardDescription>{item.label}</CardDescription>
+              <CardTitle className="text-3xl">{item.value}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">{item.description}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+        <Card>
+          <CardHeader>
+            <CardDescription>下一步建议</CardDescription>
+            <CardTitle>先把资料结构跑通</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <p className="text-sm leading-7 text-muted-foreground">
+              当前版本使用 mock 数据验证产品信息架构。数据库、真实 AI 和文件上传会在页面流程稳定后接入。
             </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <Button size="lg">
-              <FilePlus2Icon data-icon="inline-start" />
-              新增病历
-            </Button>
-            <Button size="lg" variant="outline">
-              <PillIcon data-icon="inline-start" />
-              录入药品
-            </Button>
-          </div>
-          <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm text-muted-foreground">
-            <span className="inline-flex items-center gap-2">
-              <ArrowRightIcon className="size-4 text-primary" aria-hidden="true" />
-              Server Component first
-            </span>
-            <span>shadcn/ui component system</span>
-            <span>Tailwind v4 semantic tokens</span>
-          </div>
-        </div>
+            <div className="grid gap-3">
+              {quickActions.map((action) => (
+                <Link
+                  className="flex items-center justify-between rounded-lg border bg-background px-4 py-3 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+                  href={action.href}
+                  key={action.href}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <action.icon aria-hidden="true" className="size-4 text-primary" />
+                    {action.label}
+                  </span>
+                  <ArrowRightIcon aria-hidden="true" className="size-4 text-muted-foreground" />
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
         <VaultPreview />
       </section>
-    </main>
+
+      <section className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardDescription>最近病历</CardDescription>
+            <CardTitle>{latestRecord.diagnosis}</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 text-sm leading-6 text-muted-foreground">
+            <p>{latestRecord.symptoms}</p>
+            <p>{latestRecord.doctorAdvice}</p>
+            <Badge className="w-fit" variant="secondary">
+              {latestRecord.visitedAt} / {latestRecord.department}
+            </Badge>
+          </CardContent>
+        </Card>
+
+        <Card className="border-primary/20">
+          <CardHeader>
+            <CardDescription>就医准备</CardDescription>
+            <CardTitle>{activePreparation.concern}</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 text-sm leading-6 text-muted-foreground">
+            <p>{activePreparation.summary}</p>
+            <div className="flex items-start gap-2 rounded-lg border bg-background p-3 text-foreground">
+              <ShieldAlertIcon className="mt-0.5 size-4 text-primary" aria-hidden="true" />
+              <span>AI 输出仅用于资料整理，医疗判断需要医生或药师确认。</span>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+    </div>
   )
 }

@@ -10,7 +10,13 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { medicineItems, recordItems, workflowSteps } from "@/features/medicine-vault/data"
+import {
+  allergyRecords,
+  medicalRecords,
+  medicines,
+  members,
+  visitPreparations,
+} from "@/features/medicine-vault/data"
 
 const insightItems: {
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
@@ -35,19 +41,31 @@ const insightItems: {
 ]
 
 export function VaultPreview() {
+  const activeMember = members[0]
+  const activePreparation = visitPreparations[0]
+  const memberRecords = medicalRecords
+    .filter((record) => record.memberId === activeMember.id)
+    .toSorted((a, b) => b.visitedAt.localeCompare(a.visitedAt))
+  const memberMedicines = medicines.filter((medicine) => medicine.memberId === activeMember.id)
+  const memberAllergies = allergyRecords.filter((record) => record.memberId === activeMember.id)
+
   return (
     <div className="grid gap-4">
       <Card className="border-primary/20 bg-card/90 shadow-xl shadow-primary/5">
         <CardHeader>
           <CardDescription>当前查询</CardDescription>
-          <CardTitle className="text-2xl leading-snug">咳嗽 + 低烧 + 家中常备药</CardTitle>
+          <CardTitle className="text-2xl leading-snug">{activePreparation.concern}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-5">
           <p className="text-sm leading-7 text-muted-foreground">
-            AI 将优先检索你的历史病历、过敏记录和药品说明，生成摘要和待确认问题。
+            {activePreparation.summary}
           </p>
           <div className="grid gap-3 sm:grid-cols-3">
-            {workflowSteps.map((step) => (
+            {[
+              { label: "相关病历", value: `${memberRecords.length} 条记录` },
+              { label: "家庭药品", value: `${memberMedicines.length} 个条目` },
+              { label: "过敏提示", value: `${memberAllergies.length} 条风险` },
+            ].map((step) => (
               <div className="rounded-lg border bg-background p-3" key={step.label}>
                 <p className="text-xs font-medium text-muted-foreground">{step.label}</p>
                 <p className="mt-2 text-sm font-semibold leading-5">{step.value}</p>
@@ -64,14 +82,14 @@ export function VaultPreview() {
             <CardTitle>常用药记录</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4">
-            {medicineItems.map((item, index) => (
-              <div className="grid gap-2" key={item.name}>
+            {memberMedicines.map((item, index) => (
+              <div className="grid gap-2" key={item.id}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="font-semibold">{item.name}</p>
-                  <Badge variant={index === 2 ? "outline" : "secondary"}>{item.status}</Badge>
+                  <Badge variant={index === 0 ? "outline" : "secondary"}>{item.quantity}</Badge>
                 </div>
-                <p className="text-sm leading-6 text-muted-foreground">{item.note}</p>
-                {index < medicineItems.length - 1 ? <Separator /> : null}
+                <p className="text-sm leading-6 text-muted-foreground">{item.usageNote}</p>
+                {index < memberMedicines.length - 1 ? <Separator /> : null}
               </div>
             ))}
           </CardContent>
@@ -84,9 +102,9 @@ export function VaultPreview() {
           </CardHeader>
           <CardContent className="grid gap-4">
             <div className="grid gap-3">
-              {recordItems.map((record) => (
-                <div className="rounded-lg border bg-background px-3 py-3 text-sm font-medium" key={record}>
-                  {record}
+              {memberRecords.map((record) => (
+                <div className="rounded-lg border bg-background px-3 py-3 text-sm font-medium" key={record.id}>
+                  {record.visitedAt} {record.diagnosis}
                 </div>
               ))}
             </div>
