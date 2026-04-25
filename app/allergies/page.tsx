@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { allergyRecords, getMemberById, members } from "@/features/medicine-vault/data"
+import { getMemberById, listAllergyRecords, listMembers } from "@/features/medicine-vault/repository"
 
 const severityVariant = {
   轻微: "secondary",
@@ -31,8 +31,11 @@ export default async function AllergiesPage({
   searchParams: Promise<{ member?: string }>
 }>) {
   const { member } = await searchParams
-  const currentMember = member ? getMemberById(member) : undefined
-  const visibleAllergies = allergyRecords.filter((item) => (member ? item.memberId === member : true))
+  const [members, visibleAllergies, currentMember] = await Promise.all([
+    listMembers(),
+    listAllergyRecords(member),
+    member ? getMemberById(member) : Promise.resolve(undefined),
+  ])
 
   const severeCount = visibleAllergies.filter((item) => item.severity === "严重").length
   const monitoredCount = visibleAllergies.filter((item) => item.severity !== "轻微").length
@@ -75,6 +78,9 @@ export default async function AllergiesPage({
                   type: "textarea",
                 },
               ]}
+              endpoint="/api/allergies"
+              payload={{ memberId: currentMember?.id ?? members[0]?.id ?? "" }}
+              submitLabel="保存过敏记录"
               title="新增过敏记录原型"
               triggerLabel="新增过敏记录"
             />
@@ -150,7 +156,7 @@ export default async function AllergiesPage({
 
         <section className="mt-6 grid gap-4 xl:grid-cols-2">
           {visibleAllergies.map((record) => {
-            const owner = getMemberById(record.memberId)
+            const owner = members.find((item) => item.id === record.memberId)
 
             return (
               <Card

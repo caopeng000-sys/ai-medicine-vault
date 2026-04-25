@@ -5,12 +5,12 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import {
-  allergyRecords,
-  medicalRecords,
-  medicines,
-  members,
-  visitPreparations,
-} from "@/features/medicine-vault/data"
+  listAllergyRecords,
+  listMedicalRecords,
+  listMembers,
+  listMedicines,
+  listVisitPreparations,
+} from "@/features/medicine-vault/repository"
 
 const insightItems: {
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
@@ -34,14 +34,19 @@ const insightItems: {
   },
 ]
 
-export function VaultPreview() {
+export async function VaultPreview() {
+  const [members, visitPreparations, medicalRecords, medicines, allergyRecords] = await Promise.all([
+    listMembers(),
+    listVisitPreparations(),
+    listMedicalRecords(),
+    listMedicines(),
+    listAllergyRecords(),
+  ])
   const activeMember = members[0]
   const activePreparation = visitPreparations[0]
-  const memberRecords = medicalRecords
-    .filter((record) => record.memberId === activeMember.id)
-    .toSorted((a, b) => b.visitedAt.localeCompare(a.visitedAt))
-  const memberMedicines = medicines.filter((medicine) => medicine.memberId === activeMember.id)
-  const memberAllergies = allergyRecords.filter((record) => record.memberId === activeMember.id)
+  const memberRecords = activeMember ? medicalRecords.filter((record) => record.memberId === activeMember.id) : []
+  const memberMedicines = activeMember ? medicines.filter((medicine) => medicine.memberId === activeMember.id) : []
+  const memberAllergies = activeMember ? allergyRecords.filter((record) => record.memberId === activeMember.id) : []
 
   return (
     <div className="grid gap-4">
@@ -49,10 +54,12 @@ export function VaultPreview() {
         <CardContent className="grid gap-5 p-5">
           <div>
             <p className="text-sm font-medium text-slate-500">当前查询</p>
-            <p className="mt-1 text-2xl leading-snug font-semibold text-slate-950">{activePreparation.concern}</p>
+            <p className="mt-1 text-2xl leading-snug font-semibold text-slate-950">
+              {activePreparation?.concern ?? "等待生成就医摘要"}
+            </p>
           </div>
           <p className="text-sm leading-7 text-muted-foreground">
-            {activePreparation.summary}
+            {activePreparation?.summary ?? "接入真实数据后，这里会显示按成员聚合出的就医前摘要。"}
           </p>
           <div className="grid gap-3 sm:grid-cols-3">
             {[

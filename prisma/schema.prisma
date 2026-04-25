@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Gender {
+  男
+  女
+}
+
+enum AllergySeverity {
+  轻微
+  中等
+  严重
+}
+
+model Member {
+  id               String            @id @default(cuid())
+  name             String
+  relationship     String
+  birthYear        Int?
+  gender           Gender            @default(男)
+  allergySummary   String            @default("暂无明确过敏摘要。")
+  note             String            @default("")
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  medicalRecords   MedicalRecord[]
+  medicines        Medicine[]
+  allergyRecords   AllergyRecord[]
+  visitPreparations VisitPreparation[]
+
+  @@index([name])
+}
+
+model MedicalRecord {
+  id               String   @id @default(cuid())
+  memberId         String
+  visitedAt        DateTime
+  hospitalName     String
+  department       String
+  symptoms         String
+  diagnosis        String
+  doctorAdvice     String
+  prescriptionNote String   @default("")
+  note             String   @default("")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  member           Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId, visitedAt(sort: Desc)])
+}
+
+model Medicine {
+  id              String   @id @default(cuid())
+  memberId        String
+  name            String
+  category        String
+  dosage          String
+  instructions    String
+  purpose         String
+  specification   String
+  quantity        String
+  expiresAt       DateTime
+  storageLocation String
+  usageNote       String
+  safetyNote      String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  member          Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId, expiresAt(sort: Asc)])
+}
+
+model AllergyRecord {
+  id           String          @id @default(cuid())
+  memberId     String
+  allergen     String
+  reaction     String
+  severity     AllergySeverity
+  discoveredAt DateTime
+  note         String          @default("")
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  member       Member          @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId, discoveredAt(sort: Desc)])
+}
+
+model VisitPreparation {
+  id        String   @id @default(cuid())
+  memberId  String
+  concern   String
+  summary   String
+  questions String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId, createdAt(sort: Desc)])
+}

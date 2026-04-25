@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { getMemberById, medicalRecords, members } from "@/features/medicine-vault/data"
+import { getMemberById, listMedicalRecords, listMembers } from "@/features/medicine-vault/repository"
 
 const filterButtons = ["全部时间", "全部科室", "全部诊断"]
 
@@ -27,10 +27,11 @@ export default async function RecordsPage({
   searchParams: Promise<{ member?: string }>
 }>) {
   const { member } = await searchParams
-  const currentMember = member ? getMemberById(member) : undefined
-  const records = medicalRecords
-    .filter((record) => (member ? record.memberId === member : true))
-    .toSorted((a, b) => b.visitedAt.localeCompare(a.visitedAt))
+  const [members, records, currentMember] = await Promise.all([
+    listMembers(),
+    listMedicalRecords(member),
+    member ? getMemberById(member) : Promise.resolve(undefined),
+  ])
 
   const departments = new Set(records.map((record) => record.department)).size
   const latestVisitedAt = records[0]?.visitedAt ?? "暂无记录"
@@ -72,10 +73,13 @@ export default async function RecordsPage({
                   placeholder: "记录复诊建议、观察点和禁忌提醒。",
                   type: "textarea",
                 },
-              ]}
-              title="新增病历原型"
-              triggerLabel="新增病历"
-            />
+            ]}
+            endpoint="/api/records"
+            payload={{ memberId: currentMember?.id ?? members[0]?.id ?? "" }}
+            submitLabel="保存病历"
+            title="新增病历原型"
+            triggerLabel="新增病历"
+          />
           </div>
 
           <div className="grid gap-3 lg:grid-cols-3">
@@ -148,7 +152,7 @@ export default async function RecordsPage({
 
         <section className="mt-6 grid gap-4">
           {records.map((record, index) => {
-            const owner = getMemberById(record.memberId)
+            const owner = members.find((item) => item.id === record.memberId)
 
             return (
               <Card

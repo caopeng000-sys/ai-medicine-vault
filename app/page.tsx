@@ -15,12 +15,12 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import {
-  allergyRecords,
-  medicalRecords,
-  medicines,
-  members,
-  visitPreparations,
-} from "@/features/medicine-vault/data"
+  listAllergyRecords,
+  listMedicalRecords,
+  listMembers,
+  listMedicines,
+  listVisitPreparations,
+} from "@/features/medicine-vault/repository"
 
 const quickActions = [
   { href: "/members", label: "管理成员档案", icon: UsersIcon },
@@ -29,40 +29,46 @@ const quickActions = [
   { href: "/visit-prep", label: "生成就医清单", icon: ClipboardListIcon },
 ]
 
-const statCards = [
-  {
-    label: "家庭成员",
-    value: members.length,
-    description: "已建立健康档案",
-    icon: UsersIcon,
-    tone: "text-sky-500 bg-sky-50 border-sky-100",
-  },
-  {
-    label: "病历记录",
-    value: medicalRecords.length,
-    description: "按时间线整理",
-    icon: StethoscopeIcon,
-    tone: "text-emerald-500 bg-emerald-50 border-emerald-100",
-  },
-  {
-    label: "药品条目",
-    value: medicines.length,
-    description: "含有效期状态",
-    icon: PillIcon,
-    tone: "text-violet-500 bg-violet-50 border-violet-100",
-  },
-  {
-    label: "过敏记录",
-    value: allergyRecords.length,
-    description: "就医前优先提示",
-    icon: ShieldAlertIcon,
-    tone: "text-rose-500 bg-rose-50 border-rose-100",
-  },
-] as const
-
-export default function Home() {
-  const latestRecord = medicalRecords.toSorted((a, b) => b.visitedAt.localeCompare(a.visitedAt))[0]
+export default async function Home() {
+  const [members, medicalRecords, medicines, allergyRecords, visitPreparations] = await Promise.all([
+    listMembers(),
+    listMedicalRecords(),
+    listMedicines(),
+    listAllergyRecords(),
+    listVisitPreparations(),
+  ])
+  const latestRecord = medicalRecords[0]
   const activePreparation = visitPreparations[0]
+  const statCards = [
+    {
+      label: "家庭成员",
+      value: members.length,
+      description: "已建立健康档案",
+      icon: UsersIcon,
+      tone: "text-sky-500 bg-sky-50 border-sky-100",
+    },
+    {
+      label: "病历记录",
+      value: medicalRecords.length,
+      description: "按时间线整理",
+      icon: StethoscopeIcon,
+      tone: "text-emerald-500 bg-emerald-50 border-emerald-100",
+    },
+    {
+      label: "药品条目",
+      value: medicines.length,
+      description: "含有效期状态",
+      icon: PillIcon,
+      tone: "text-violet-500 bg-violet-50 border-violet-100",
+    },
+    {
+      label: "过敏记录",
+      value: allergyRecords.length,
+      description: "就医前优先提示",
+      icon: ShieldAlertIcon,
+      tone: "text-rose-500 bg-rose-50 border-rose-100",
+    },
+  ] as const
 
   return (
     <div className="grid gap-6">
@@ -145,20 +151,28 @@ export default function Home() {
           <Card className="rounded-[26px] border-slate-100 bg-white shadow-[0_16px_60px_rgba(15,23,42,0.06)]">
             <CardContent className="grid gap-3 p-5 text-sm leading-6">
               <p className="text-sm font-medium text-slate-500">最近病历</p>
-              <p className="text-xl font-semibold text-slate-950">{latestRecord.diagnosis}</p>
-              <p className="text-slate-600">{latestRecord.symptoms}</p>
-              <p className="text-slate-600">{latestRecord.doctorAdvice}</p>
-              <Badge className="w-fit rounded-full px-3 py-1" variant="secondary">
-                {latestRecord.visitedAt} / {latestRecord.department}
-              </Badge>
+              {latestRecord ? (
+                <>
+                  <p className="text-xl font-semibold text-slate-950">{latestRecord.diagnosis}</p>
+                  <p className="text-slate-600">{latestRecord.symptoms}</p>
+                  <p className="text-slate-600">{latestRecord.doctorAdvice}</p>
+                  <Badge className="w-fit rounded-full px-3 py-1" variant="secondary">
+                    {latestRecord.visitedAt} / {latestRecord.department}
+                  </Badge>
+                </>
+              ) : (
+                <p className="text-slate-600">当前还没有真实病历记录，先从新增病历开始。</p>
+              )}
             </CardContent>
           </Card>
 
           <Card className="rounded-[26px] border-slate-100 bg-white shadow-[0_16px_60px_rgba(15,23,42,0.06)]">
             <CardContent className="grid gap-4 p-5 text-sm leading-6">
               <p className="text-sm font-medium text-slate-500">就医准备</p>
-              <p className="text-xl font-semibold text-slate-950">{activePreparation.concern}</p>
-              <p className="text-slate-600">{activePreparation.summary}</p>
+              <p className="text-xl font-semibold text-slate-950">{activePreparation?.concern ?? "尚未生成就医清单"}</p>
+              <p className="text-slate-600">
+                {activePreparation?.summary ?? "接入真实数据后，这里会优先展示可带去问诊的摘要。"}
+              </p>
               <div className="flex items-start gap-2 rounded-[20px] border border-amber-100 bg-amber-50/70 p-4 text-slate-700">
                 <ShieldAlertIcon className="mt-0.5 size-4 text-amber-500" aria-hidden="true" />
                 <span>AI 输出仅用于资料整理，医疗判断需要医生或药师确认。</span>

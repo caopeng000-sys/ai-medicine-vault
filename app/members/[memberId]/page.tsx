@@ -1,6 +1,14 @@
-import { CalendarDaysIcon, ChevronRightIcon, FileTextIcon, PillIcon, ShieldAlertIcon } from "lucide-react"
+import {
+  CalendarDaysIcon,
+  ChevronRightIcon,
+  FileTextIcon,
+  PillIcon,
+  ShieldAlertIcon,
+} from "lucide-react"
 import Link from "next/link"
 
+import { MemberDeleteButton } from "@/components/medicine-vault/member-delete-button"
+import { MockEntryDialog } from "@/components/medicine-vault/mock-entry-dialog"
 import { PageHeader } from "@/components/medicine-vault/page-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,12 +20,12 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import {
-  getAllergiesForMember,
-  getMedicinesForMember,
   getMemberById,
-  getRecordsForMember,
-  getVisitPreparationForMember,
-} from "@/features/medicine-vault/data"
+  listAllergyRecords,
+  listMedicines,
+  listMedicalRecords,
+  listVisitPreparations,
+} from "@/features/medicine-vault/repository"
 
 export default async function MemberDetailPage({
   params,
@@ -25,7 +33,7 @@ export default async function MemberDetailPage({
   params: Promise<{ memberId: string }>
 }>) {
   const { memberId } = await params
-  const member = getMemberById(memberId)
+  const member = await getMemberById(memberId)
 
   if (!member) {
     return (
@@ -38,16 +46,56 @@ export default async function MemberDetailPage({
     )
   }
 
-  const records = getRecordsForMember(memberId)
-  const medicines = getMedicinesForMember(memberId)
-  const allergies = getAllergiesForMember(memberId)
-  const preparation = getVisitPreparationForMember(memberId)
+  const [records, medicines, allergies, preparations] = await Promise.all([
+    listMedicalRecords(memberId),
+    listMedicines(memberId),
+    listAllergyRecords(memberId),
+    listVisitPreparations(memberId),
+  ])
+  const preparation = preparations[0]
 
   return (
     <div className="grid gap-6">
       <PageHeader
         action={
           <div className="flex flex-wrap gap-2">
+            <MockEntryDialog
+              description="更新成员基础资料，后续所有病历、药品和过敏记录都会继续挂在这个成员下。"
+              endpoint={`/api/members/${member.id}`}
+              fields={[
+                { label: "成员姓名", name: "name", placeholder: "例如：爸爸" },
+                { label: "关系", name: "relationship", placeholder: "例如：父亲" },
+                {
+                  label: "性别",
+                  name: "gender",
+                  placeholder: "请选择性别",
+                  type: "select",
+                  options: [
+                    { label: "男", value: "男" },
+                    { label: "女", value: "女" },
+                  ],
+                },
+                { label: "出生年份", name: "birthYear", placeholder: "例如：1970" },
+                {
+                  label: "健康备注",
+                  name: "note",
+                  placeholder: "记录需要长期关注的症状、慢病或就医提醒。",
+                  type: "textarea",
+                },
+              ]}
+              initialValues={{
+                name: member.name,
+                relationship: member.relationship,
+                gender: member.gender,
+                birthYear: member.birthYear,
+                note: member.note,
+              }}
+              method="PATCH"
+              submitLabel="保存修改"
+              title="编辑成员"
+              triggerLabel="编辑成员"
+            />
+            <MemberDeleteButton memberId={member.id} memberName={member.name} redirectToMembers />
             <Button asChild variant="outline">
               <Link href={`/records?member=${member.id}`}>病历</Link>
             </Button>

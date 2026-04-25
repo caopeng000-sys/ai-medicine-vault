@@ -7,18 +7,20 @@ import {
   Clock3Icon,
   MapPinIcon,
   PackageIcon,
-  PlusIcon,
+  PencilLineIcon,
   SearchIcon,
   ShieldAlertIcon,
   TriangleAlertIcon,
 } from "lucide-react"
 
-import { MockEntryDialog } from "@/components/medicine-vault/mock-entry-dialog"
+import { MedicineEntryDialog } from "@/components/medicine-vault/medicine-entry-dialog"
+import { MedicineDeleteButton } from "@/components/medicine-vault/medicine-delete-button"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { getMedicineStatus, getMemberById, medicines, members } from "@/features/medicine-vault/data"
+import { getMedicineStatus } from "@/features/medicine-vault/data"
+import { getMemberById, listMembers, listMedicines } from "@/features/medicine-vault/repository"
 
 const filterButtons = ["全部状态", "全部分类", "过期日期"]
 
@@ -37,8 +39,11 @@ export default async function MedicinesPage({
   searchParams: Promise<{ member?: string }>
 }>) {
   const { member } = await searchParams
-  const currentMember = member ? getMemberById(member) : undefined
-  const visibleMedicines = medicines.filter((item) => (member ? item.memberId === member : true))
+  const [members, visibleMedicines, currentMember] = await Promise.all([
+    listMembers(),
+    listMedicines(member),
+    member ? getMemberById(member) : Promise.resolve(undefined),
+  ])
   const countLabel = `${visibleMedicines.length} 条药品记录`
   const expiringSoonCount = visibleMedicines.filter((item) => {
     const status = getMedicineStatus(item.expiresAt)
@@ -65,10 +70,10 @@ export default async function MedicinesPage({
               </p>
             </div>
 
-            <Button className="rounded-2xl bg-emerald-500 px-4 text-white shadow-sm hover:bg-emerald-600">
-              <PlusIcon aria-hidden="true" data-icon="inline-start" />
-              新增药物记录
-            </Button>
+            <MedicineEntryDialog
+              memberId={currentMember?.id ?? members[0]?.id ?? ""}
+              triggerLabel="新增药物记录"
+            />
           </div>
 
           <div className="grid gap-3 lg:grid-cols-3">
@@ -135,23 +140,8 @@ export default async function MedicinesPage({
                   {item.name}
                 </Badge>
               ))}
-              <MockEntryDialog
-                description="先把药品录入表单做成高完成度原型，后续再接真实存储与筛选联动。"
-                fields={[
-                  { label: "药品名称", name: "name", placeholder: "例如：阿莫西林胶囊" },
-                  { label: "分类", name: "category", placeholder: "例如：抗感染" },
-                  { label: "剂量", name: "dosage", placeholder: "例如：0.25g/粒" },
-                  { label: "规格", name: "specification", placeholder: "例如：0.25g * 24 粒" },
-                  { label: "有效期", name: "expiresAt", placeholder: "例如：2027-01-31" },
-                  {
-                    label: "使用说明",
-                    name: "instructions",
-                    placeholder: "记录服用方式、频率或特别提醒。",
-                    type: "textarea",
-                  },
-                ]}
-                submitLabel="保存药品原型"
-                title="新增药品记录"
+              <MedicineEntryDialog
+                memberId={currentMember?.id ?? members[0]?.id ?? ""}
                 triggerLabel="录入药品"
               />
             </div>
@@ -160,7 +150,7 @@ export default async function MedicinesPage({
 
         <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {visibleMedicines.map((medicine, index) => {
-            const member = getMemberById(medicine.memberId)
+            const owner = members.find((item) => item.id === medicine.memberId)
             const status = getMedicineStatus(medicine.expiresAt)
             const accent = accentStyles[index % accentStyles.length]
             const expiryTone =
@@ -186,7 +176,7 @@ export default async function MedicinesPage({
                       <div className="min-w-0">
                         <p className="truncate text-lg font-semibold text-slate-950">{medicine.name}</p>
                         <p className="mt-1 text-sm text-slate-500">
-                          {member?.name ?? "未关联成员"} · {medicine.category}
+                          {owner?.name ?? "未关联成员"} · {medicine.category}
                         </p>
                       </div>
                     </div>
@@ -197,6 +187,35 @@ export default async function MedicinesPage({
                     >
                       {status.label}
                     </Badge>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <MedicineEntryDialog
+                      dialogDescription="更新药品名称、分类、剂量、规格、使用说明和治疗疾病。保存前可以继续借助图片识别回填。"
+                      dialogTitle="编辑药品记录"
+                      initialValues={{
+                        name: medicine.name,
+                        category: medicine.category,
+                        dosage: medicine.dosage,
+                        specification: medicine.specification,
+                        purpose: medicine.purpose,
+                        expiresAt: medicine.expiresAt,
+                        instructions: medicine.instructions,
+                      }}
+                      medicineId={medicine.id}
+                      memberId={medicine.memberId}
+                      submitLabel="保存修改"
+                      triggerClassName="group h-11 justify-center rounded-full border-slate-200 bg-white px-5 text-slate-700 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50"
+                      triggerIcon={<PencilLineIcon className="size-3.5" aria-hidden="true" />}
+                      triggerLabel="编辑"
+                      triggerVariant="outline"
+                    />
+
+                    <MedicineDeleteButton
+                      className=""
+                      medicineId={medicine.id}
+                      medicineName={medicine.name}
+                    />
                   </div>
 
                   <div className="grid gap-4 text-sm leading-6 text-slate-600">

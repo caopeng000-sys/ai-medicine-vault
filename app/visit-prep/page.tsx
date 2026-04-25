@@ -4,19 +4,26 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import {
-  getAllergiesForMember,
-  getMedicinesForMember,
-  getRecordsForMember,
-  members,
-  visitPreparations,
-} from "@/features/medicine-vault/data"
+  listAllergyRecords,
+  listMedicalRecords,
+  listMembers,
+  listMedicines,
+  listVisitPreparations,
+} from "@/features/medicine-vault/repository"
 
-export default function VisitPreparationPage() {
+export default async function VisitPreparationPage() {
+  const [members, visitPreparations, medicalRecords, medicines, allergies] = await Promise.all([
+    listMembers(),
+    listVisitPreparations(),
+    listMedicalRecords(),
+    listMedicines(),
+    listAllergyRecords(),
+  ])
   const preparation = visitPreparations[0]
-  const member = members.find((item) => item.id === preparation.memberId) ?? members[0]
-  const records = getRecordsForMember(member.id)
-  const medicines = getMedicinesForMember(member.id)
-  const allergies = getAllergiesForMember(member.id)
+  const member = members.find((item) => item.id === preparation?.memberId) ?? members[0]
+  const records = member ? medicalRecords.filter((record) => record.memberId === member.id) : []
+  const memberMedicines = member ? medicines.filter((item) => item.memberId === member.id) : []
+  const memberAllergies = member ? allergies.filter((item) => item.memberId === member.id) : []
 
   return (
     <div className="grid gap-6">
@@ -56,7 +63,7 @@ export default function VisitPreparationPage() {
                 <PillIcon className="size-4" aria-hidden="true" />
                 近期药品
               </p>
-              <p className="mt-3 text-3xl font-semibold text-slate-950">{medicines.length}</p>
+              <p className="mt-3 text-3xl font-semibold text-slate-950">{memberMedicines.length}</p>
               <p className="mt-1 text-sm text-slate-500">便于就医时快速说明最近实际接触过的药物。</p>
             </div>
 
@@ -65,7 +72,7 @@ export default function VisitPreparationPage() {
                 <ShieldAlertIcon className="size-4" aria-hidden="true" />
                 过敏提示
               </p>
-              <p className="mt-3 text-3xl font-semibold text-slate-950">{allergies.length}</p>
+              <p className="mt-3 text-3xl font-semibold text-slate-950">{memberAllergies.length}</p>
               <p className="mt-1 text-sm text-slate-500">问诊前必须优先确认并主动说明给医生。</p>
             </div>
           </div>
@@ -76,14 +83,14 @@ export default function VisitPreparationPage() {
             <CardContent className="grid gap-4 p-5 text-sm leading-6">
               <div>
                 <p className="text-sm font-medium text-slate-500">当前成员</p>
-                <p className="mt-1 text-2xl font-semibold text-slate-950">{member.name}</p>
+                <p className="mt-1 text-2xl font-semibold text-slate-950">{member?.name ?? "尚未选择成员"}</p>
               </div>
 
-              <p className="text-slate-600">{member.note}</p>
+              <p className="text-slate-600">{member?.note ?? "等录入成员、病历、药品和过敏记录后，这里会生成针对性的就医准备说明。"}</p>
 
               <div className="rounded-[22px] border border-amber-100 bg-amber-50/70 p-4">
                 <p className="font-medium text-slate-700">过敏摘要</p>
-                <p className="mt-2 text-slate-600">{member.allergySummary}</p>
+                <p className="mt-2 text-slate-600">{member?.allergySummary ?? "暂无过敏摘要。"}</p>
               </div>
 
               <div className="grid gap-2">
@@ -91,10 +98,10 @@ export default function VisitPreparationPage() {
                   相关病历 {records.length}
                 </Badge>
                 <Badge className="w-fit rounded-full px-3 py-1" variant="secondary">
-                  近期药品 {medicines.length}
+                  近期药品 {memberMedicines.length}
                 </Badge>
-                <Badge className="w-fit rounded-full px-3 py-1" variant={allergies.length > 0 ? "outline" : "secondary"}>
-                  过敏记录 {allergies.length}
+                <Badge className="w-fit rounded-full px-3 py-1" variant={memberAllergies.length > 0 ? "outline" : "secondary"}>
+                  过敏记录 {memberAllergies.length}
                 </Badge>
               </div>
             </CardContent>
@@ -107,18 +114,20 @@ export default function VisitPreparationPage() {
                   <ClipboardListIcon className="size-4" aria-hidden="true" />
                   模拟生成
                 </p>
-                <p className="mt-2 text-2xl font-semibold text-slate-950">{preparation.concern}</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-950">{preparation?.concern ?? "尚未生成就医准备清单"}</p>
               </div>
 
               <section className="rounded-[22px] border border-slate-100 bg-slate-50/70 p-4">
                 <p className="font-medium text-slate-700">摘要</p>
-                <p className="mt-3 text-slate-600">{preparation.summary}</p>
+                <p className="mt-3 text-slate-600">
+                  {preparation?.summary ?? "接入真实数据后，这里会生成基于病历、药品和过敏信息的就医前摘要。"}
+                </p>
               </section>
 
               <section className="rounded-[22px] border border-slate-100 bg-slate-50/70 p-4">
                 <p className="font-medium text-slate-700">建议咨询医生或药师的问题</p>
                 <ul className="mt-3 grid gap-2">
-                  {preparation.questions.map((question) => (
+                  {(preparation?.questions ?? ["当前还没有可生成的问题清单。"]).map((question) => (
                     <li className="rounded-2xl bg-white px-3 py-3 text-slate-600" key={question}>
                       {question}
                     </li>
