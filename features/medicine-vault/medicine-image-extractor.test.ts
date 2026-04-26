@@ -39,11 +39,14 @@ describe("extractMedicineFromImage", () => {
       const result = await extractMedicineFromImage(dataUrl)
 
       assert.ok(result.name)
+      assert.equal(result.category, "止痛退烧")
+      assert.equal(result.dosage, "0.3g/粒")
       assert.ok(result.specification)
       assert.ok(result.instructions)
       assert.ok(result.purpose)
       assert.ok(result.summary)
-      assert.ok(Array.isArray(result.warnings))
+      assert.equal(result.originalText, "布洛芬缓释胶囊 0.3g/粒")
+      assert.deepEqual(result.warnings, ["有效期未识别清楚。"])
     } finally {
       globalThis.fetch = originalFetch
       if (originalApiKey === undefined) {
