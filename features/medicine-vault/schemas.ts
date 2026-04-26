@@ -53,8 +53,21 @@ export const createAllergyRecordSchema = z.object({
   note: z.string().trim().default(""),
 })
 
+export const extractedMedicineSchema = z.object({
+  name: z.string().trim().default(""),
+  category: z.string().trim().default(""),
+  dosage: z.string().trim().default(""),
+  specification: z.string().trim().default(""),
+  instructions: z.string().trim().default(""),
+  purpose: z.string().trim().default(""),
+  summary: z.string().trim().default(""),
+  warnings: z.array(z.string().trim()).default([]),
+  originalText: z.string().trim().default(""),
+})
+
 export type CreateMemberInput = z.infer<typeof createMemberSchema>
 export type UpdateMemberInput = z.infer<typeof updateMemberSchema>
 export type CreateMedicalRecordInput = z.infer<typeof createMedicalRecordSchema>
 export type CreateMedicineInput = z.infer<typeof createMedicineSchema>
 export type CreateAllergyRecordInput = z.infer<typeof createAllergyRecordSchema>
+export type ExtractedMedicineData = z.infer<typeof extractedMedicineSchema>
