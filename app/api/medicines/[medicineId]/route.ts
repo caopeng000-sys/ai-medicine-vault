@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { deleteMedicine, getMedicineById, updateMedicine } from "@/features/medicine-vault/repository"
-import { createMedicineSchema } from "@/features/medicine-vault/schemas"
+import { parseMedicineSubmission } from "@/features/medicine-vault/medicine-request"
 
 export async function PATCH(
   request: Request,
@@ -15,8 +15,8 @@ export async function PATCH(
       return NextResponse.json({ message: "药品记录不存在。" }, { status: 404 })
     }
 
-    const input = createMedicineSchema.parse(await request.json())
-    const medicine = await updateMedicine(medicineId, input)
+    const { input, image } = await parseMedicineSubmission(request)
+    const medicine = await updateMedicine(medicineId, input, image)
 
     return NextResponse.json({
       message: "药品记录已更新。",

@@ -5,6 +5,7 @@ import {
   ChevronRightIcon,
   ClipboardListIcon,
   Clock3Icon,
+  ImageIcon,
   MapPinIcon,
   PackageIcon,
   PencilLineIcon,
@@ -36,20 +37,44 @@ const accentStyles = [
 export default async function MedicinesPage({
   searchParams,
 }: Readonly<{
-  searchParams: Promise<{ member?: string }>
+  searchParams: Promise<{ member?: string; q?: string }>
 }>) {
-  const { member } = await searchParams
+  const { member, q } = await searchParams
   const [members, visibleMedicines, currentMember] = await Promise.all([
     listMembers(),
-    listMedicines(member),
+    listMedicines(member, q),
     member ? getMemberById(member) : Promise.resolve(undefined),
   ])
   const countLabel = `${visibleMedicines.length} 条药品记录`
+  const queryLabel = q?.trim() ? `“${q.trim()}”` : ""
+  const lowStockCount = visibleMedicines.filter((item) => {
+    const status = getMedicineStatus(item.expiresAt, item.quantity)
+    return status.label === "库存不足"
+  }).length
   const expiringSoonCount = visibleMedicines.filter((item) => {
-    const status = getMedicineStatus(item.expiresAt)
+    const status = getMedicineStatus(item.expiresAt, item.quantity)
     return status.daysLeft >= 0 && status.daysLeft <= 60
   }).length
-  const expiredCount = visibleMedicines.filter((item) => getMedicineStatus(item.expiresAt).daysLeft < 0).length
+  const expiredCount = visibleMedicines.filter((item) => getMedicineStatus(item.expiresAt, item.quantity).daysLeft < 0).length
+  const displayMedicines = [...visibleMedicines].sort((left, right) => {
+    const leftStatus = getMedicineStatus(left.expiresAt, left.quantity)
+    const rightStatus = getMedicineStatus(right.expiresAt, right.quantity)
+    const priority = {
+      已过期: 0,
+      库存不足: 1,
+      即将过期: 2,
+      状态正常: 3,
+    } as const
+
+    const leftPriority = priority[leftStatus.label as keyof typeof priority]
+    const rightPriority = priority[rightStatus.label as keyof typeof priority]
+
+    if (leftPriority !== rightPriority) {
+      return leftPriority - rightPriority
+    }
+
+    return left.expiresAt.localeCompare(right.expiresAt)
+  })
 
   return (
     <div className="grid gap-6">
@@ -60,13 +85,14 @@ export default async function MedicinesPage({
               <div className="flex flex-wrap items-center gap-3">
                 <h1 className="text-3xl font-semibold tracking-normal text-slate-950">药物管理</h1>
                 <Badge className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-600 hover:bg-emerald-50">
-                  {countLabel}
+                  {q?.trim() ? `找到 ${countLabel}` : countLabel}
                 </Badge>
               </div>
               <p className="max-w-3xl text-sm leading-6 text-slate-500">
                 {currentMember
                   ? `当前聚焦 ${currentMember.name} 的家庭用药记录，优先展示有效期、用途和就医时需要说明的上下文。`
                   : "按药品库方式整理常备药、家庭设备耗材和既往剩余处方，先做资料管理，不做替代用药推荐。"}
+                {queryLabel ? ` 当前正在搜索 ${queryLabel}。` : ""}
               </p>
             </div>
 
@@ -76,7 +102,7 @@ export default async function MedicinesPage({
             />
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-3">
+          <div className="grid gap-3 lg:grid-cols-4">
             <div className="rounded-2xl border border-slate-100 bg-slate-50/85 p-4">
               <p className="inline-flex items-center gap-2 text-sm font-medium text-slate-600">
                 <PackageIcon className="size-4 text-emerald-500" aria-hidden="true" />
@@ -103,29 +129,51 @@ export default async function MedicinesPage({
               <p className="mt-3 text-3xl font-semibold text-slate-950">{expiredCount}</p>
               <p className="mt-1 text-sm text-slate-500">过期药品应尽快处理，不继续作为家庭备药保留。</p>
             </div>
+
+            <div className="rounded-2xl border border-orange-100 bg-orange-50/90 p-4">
+              <p className="inline-flex items-center gap-2 text-sm font-medium text-orange-700">
+                <ShieldAlertIcon className="size-4" aria-hidden="true" />
+                库存不足
+              </p>
+              <p className="mt-3 text-3xl font-semibold text-slate-950">{lowStockCount}</p>
+              <p className="mt-1 text-sm text-slate-500">库存过少的药品，后续补充时优先查看。 </p>
+            </div>
           </div>
 
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex flex-1 flex-col gap-3 lg:flex-row">
+            <form className="flex flex-1 flex-col gap-3 lg:flex-row" method="get">
+              {member ? <input name="member" type="hidden" value={member} /> : null}
               <div className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
                 <SearchIcon className="size-4 text-slate-400" aria-hidden="true" />
                 <Input
                   className="border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+                  defaultValue={q ?? ""}
+                  name="q"
                   placeholder="搜索药品名称、成分、用途..."
+                  type="search"
                 />
               </div>
+
+              <Button
+                className="rounded-2xl border-slate-200 bg-white px-5 text-slate-700 hover:bg-slate-50"
+                type="submit"
+                variant="outline"
+              >
+                搜索
+              </Button>
 
               {filterButtons.map((label) => (
                 <Button
                   className="justify-between rounded-2xl border-slate-200 bg-white px-4 text-slate-600 hover:bg-slate-50"
                   key={label}
+                  type="button"
                   variant="outline"
                 >
                   {label}
                   <ChevronDownIcon aria-hidden="true" data-icon="inline-end" />
                 </Button>
               ))}
-            </div>
+            </form>
 
             <div className="flex flex-wrap items-center gap-2">
               <Badge className="rounded-full px-3 py-1" variant={currentMember ? "outline" : "secondary"}>
@@ -149,9 +197,14 @@ export default async function MedicinesPage({
         </div>
 
         <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-          {visibleMedicines.map((medicine, index) => {
+          {displayMedicines.length === 0 ? (
+            <div className="col-span-full rounded-[26px] border border-dashed border-slate-200 bg-slate-50/70 px-6 py-12 text-center text-sm text-slate-500">
+              没有找到匹配的药品记录，请换一个关键词试试。
+            </div>
+          ) : null}
+          {displayMedicines.map((medicine, index) => {
             const owner = members.find((item) => item.id === medicine.memberId)
-            const status = getMedicineStatus(medicine.expiresAt)
+            const status = getMedicineStatus(medicine.expiresAt, medicine.quantity)
             const accent = accentStyles[index % accentStyles.length]
             const expiryTone =
               status.daysLeft < 0
@@ -159,6 +212,10 @@ export default async function MedicinesPage({
                 : status.daysLeft <= 60
                   ? "bg-amber-50 text-amber-500"
                   : "bg-emerald-50 text-emerald-600"
+            const statusBadgeClass =
+              status.label === "库存不足"
+                ? "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-50"
+                : ""
 
             return (
               <Card
@@ -175,19 +232,55 @@ export default async function MedicinesPage({
                       </span>
                       <div className="min-w-0">
                         <p className="truncate text-lg font-semibold text-slate-950">{medicine.name}</p>
-                        <p className="mt-1 text-sm text-slate-500">
-                          {owner?.name ?? "未关联成员"} · {medicine.category}
-                        </p>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+                          <span>{owner?.name ?? "未关联成员"} · {medicine.category}</span>
+                          {medicine.hasImage ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-600">
+                              <ImageIcon className="size-3.5" aria-hidden="true" />
+                              已保存图片
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2.5 py-1 font-medium text-slate-600">
+                            <PackageIcon className="size-3.5 text-slate-400" aria-hidden="true" />
+                            库存 {medicine.quantity}
+                          </span>
+                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2.5 py-1 font-medium text-slate-600">
+                            <MapPinIcon className="size-3.5 text-slate-400" aria-hidden="true" />
+                            {medicine.storageLocation}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
-                    <Badge
-                      className="shrink-0 rounded-full px-2.5 py-1 text-xs"
-                      variant={status.tone}
-                    >
+                    <Badge className={`shrink-0 rounded-full px-2.5 py-1 text-xs ${statusBadgeClass}`} variant={status.label === "状态正常" ? "secondary" : status.label === "已过期" ? "destructive" : "outline"}>
                       {status.label}
                     </Badge>
                   </div>
+
+                  {medicine.hasImage ? (
+                    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+                      <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-3 py-2">
+                        <span className="inline-flex items-center gap-2 text-xs font-medium text-slate-500">
+                          <ImageIcon className="size-3.5 text-sky-500" aria-hidden="true" />
+                          图片预览
+                        </span>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-600">
+                          AI 识别回填
+                        </span>
+                      </div>
+                      <img
+                        alt={medicine.imageName ? `${medicine.name} - ${medicine.imageName}` : medicine.name}
+                        className="h-40 w-full object-contain bg-white"
+                        src={`/api/medicines/${medicine.id}/image`}
+                      />
+                      <div className="flex items-center justify-between gap-3 border-t border-slate-200 px-3 py-2 text-xs text-slate-500">
+                        <span className="truncate">{medicine.imageName ?? "药品原图"}</span>
+                        <span className="shrink-0">点击编辑可重新上传</span>
+                      </div>
+                    </div>
+                  ) : null}
 
                   <div className="grid grid-cols-2 gap-3">
                     <MedicineEntryDialog
@@ -198,9 +291,13 @@ export default async function MedicinesPage({
                         category: medicine.category,
                         dosage: medicine.dosage,
                         specification: medicine.specification,
+                        quantity: medicine.quantity,
+                        storageLocation: medicine.storageLocation,
                         purpose: medicine.purpose,
                         expiresAt: medicine.expiresAt,
                         instructions: medicine.instructions,
+                        usageNote: medicine.usageNote,
+                        safetyNote: medicine.safetyNote,
                       }}
                       medicineId={medicine.id}
                       memberId={medicine.memberId}

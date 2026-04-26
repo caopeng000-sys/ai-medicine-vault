@@ -22,6 +22,7 @@ import type {
   CreateMedicineInput,
   UpdateMemberInput,
 } from "@/features/medicine-vault/schemas"
+import type { MedicineImageAttachment } from "@/features/medicine-vault/medicine-request"
 
 function toDateOnly(value: string) {
   return new Date(`${value}T00:00:00.000Z`)
@@ -91,6 +92,8 @@ function mapMedicine(medicine: {
   storageLocation: string
   usageNote: string
   safetyNote: string
+  imageBytes?: Uint8Array | Buffer | null
+  imageName?: string | null
 }): Medicine {
   return {
     id: medicine.id,
@@ -106,6 +109,8 @@ function mapMedicine(medicine: {
     storageLocation: medicine.storageLocation,
     usageNote: medicine.usageNote,
     safetyNote: medicine.safetyNote,
+    hasImage: Boolean(medicine.imageBytes?.length),
+    imageName: medicine.imageName ?? undefined,
   }
 }
 
@@ -153,6 +158,10 @@ function splitHospitalField(value: string) {
     hospitalName: hospitalName ?? value.trim(),
     department: department ?? "未分科",
   }
+}
+
+function fallbackText(value: string | undefined, fallback: string) {
+  return value?.trim() || fallback
 }
 
 export function isDatabaseConfigured() {
@@ -218,22 +227,80 @@ export async function listMedicalRecords(memberId?: string) {
   }
 }
 
-export async function listMedicines(memberId?: string) {
+export async function listMedicines(memberId?: string, query?: string) {
   const prisma = getPrismaClient()
+  const normalizedQuery = query?.trim()
+  const hasQuery = Boolean(normalizedQuery)
 
   if (!prisma) {
-    return mockMedicines.filter((medicine) => (memberId ? medicine.memberId === memberId : true))
+    return mockMedicines.filter((medicine) => {
+      const matchesMember = memberId ? medicine.memberId === memberId : true
+      const searchableText = [
+        medicine.name,
+        medicine.category,
+        medicine.dosage,
+        medicine.instructions,
+        medicine.purpose,
+        medicine.specification,
+        medicine.storageLocation,
+        medicine.usageNote,
+        medicine.safetyNote,
+      ]
+        .join(" ")
+        .toLowerCase()
+
+      const matchesQuery = hasQuery ? searchableText.includes(normalizedQuery!.toLowerCase()) : true
+
+      return matchesMember && matchesQuery
+    })
   }
 
   try {
     const medicines = await prisma.medicine.findMany({
-      where: memberId ? { memberId } : undefined,
+      where: {
+        ...(memberId ? { memberId } : {}),
+        ...(hasQuery
+          ? {
+              OR: [
+                { name: { contains: normalizedQuery, mode: "insensitive" } },
+                { category: { contains: normalizedQuery, mode: "insensitive" } },
+                { dosage: { contains: normalizedQuery, mode: "insensitive" } },
+                { instructions: { contains: normalizedQuery, mode: "insensitive" } },
+                { purpose: { contains: normalizedQuery, mode: "insensitive" } },
+                { specification: { contains: normalizedQuery, mode: "insensitive" } },
+                { storageLocation: { contains: normalizedQuery, mode: "insensitive" } },
+                { usageNote: { contains: normalizedQuery, mode: "insensitive" } },
+                { safetyNote: { contains: normalizedQuery, mode: "insensitive" } },
+                { member: { name: { contains: normalizedQuery, mode: "insensitive" } } },
+              ],
+            }
+          : {}),
+      },
       orderBy: { expiresAt: "asc" },
     })
 
     return medicines.map(mapMedicine)
   } catch {
-    return mockMedicines.filter((medicine) => (memberId ? medicine.memberId === memberId : true))
+    return mockMedicines.filter((medicine) => {
+      const matchesMember = memberId ? medicine.memberId === memberId : true
+      const searchableText = [
+        medicine.name,
+        medicine.category,
+        medicine.dosage,
+        medicine.instructions,
+        medicine.purpose,
+        medicine.specification,
+        medicine.storageLocation,
+        medicine.usageNote,
+        medicine.safetyNote,
+      ]
+        .join(" ")
+        .toLowerCase()
+
+      const matchesQuery = hasQuery ? searchableText.includes(normalizedQuery!.toLowerCase()) : true
+
+      return matchesMember && matchesQuery
+    })
   }
 }
 
@@ -252,6 +319,39 @@ export async function getMedicineById(medicineId: string) {
     return medicine ? mapMedicine(medicine) : undefined
   } catch {
     return mockMedicines.find((medicine) => medicine.id === medicineId)
+  }
+}
+
+export async function getMedicineImageById(medicineId: string) {
+  const prisma = getPrismaClient()
+
+  if (!prisma) {
+    return undefined
+  }
+
+  try {
+    const medicine = await prisma.medicine.findUnique({
+      where: { id: medicineId },
+      select: {
+        name: true,
+        imageBytes: true,
+        imageMimeType: true,
+        imageName: true,
+      },
+    })
+
+    if (!medicine?.imageBytes?.length) {
+      return undefined
+    }
+
+    return {
+      name: medicine.name,
+      imageBytes: medicine.imageBytes,
+      imageMimeType: medicine.imageMimeType ?? "image/jpeg",
+      imageName: medicine.imageName ?? `${medicine.name}.jpg`,
+    }
+  } catch {
+    return undefined
   }
 }
 
@@ -373,7 +473,7 @@ export async function createMedicalRecord(input: CreateMedicalRecordInput) {
   return mapMedicalRecord(record)
 }
 
-export async function createMedicine(input: CreateMedicineInput) {
+export async function createMedicine(input: CreateMedicineInput, image?: MedicineImageAttachment) {
   const prisma = getPrismaClient()
 
   if (!prisma) {
@@ -389,18 +489,25 @@ export async function createMedicine(input: CreateMedicineInput) {
       instructions: input.instructions,
       purpose: input.purpose,
       specification: input.specification,
-      quantity: "1 份",
+      quantity: fallbackText(input.quantity, "1 份"),
       expiresAt: toDateOnly(input.expiresAt),
-      storageLocation: "待补充存放位置。",
-      usageNote: "通过原型表单录入。",
-      safetyNote: "后续需要补充更具体的用药风险提示。",
+      storageLocation: fallbackText(input.storageLocation, "待补充存放位置。"),
+      usageNote: fallbackText(input.usageNote, "通过原型表单录入。"),
+      safetyNote: fallbackText(input.safetyNote, "后续需要补充更具体的用药风险提示。"),
+      imageBytes: image?.bytes,
+      imageMimeType: image?.mimeType,
+      imageName: image?.name,
     },
   })
 
   return mapMedicine(medicine)
 }
 
-export async function updateMedicine(medicineId: string, input: CreateMedicineInput) {
+export async function updateMedicine(
+  medicineId: string,
+  input: CreateMedicineInput,
+  image?: MedicineImageAttachment
+) {
   const prisma = getPrismaClient()
 
   if (!prisma) {
@@ -417,7 +524,18 @@ export async function updateMedicine(medicineId: string, input: CreateMedicineIn
       instructions: input.instructions,
       purpose: input.purpose,
       specification: input.specification,
+      quantity: fallbackText(input.quantity, "1 份"),
+      storageLocation: fallbackText(input.storageLocation, "待补充存放位置。"),
+      usageNote: fallbackText(input.usageNote, "通过原型表单录入。"),
+      safetyNote: fallbackText(input.safetyNote, "后续需要补充更具体的用药风险提示。"),
       expiresAt: toDateOnly(input.expiresAt),
+      ...(image
+        ? {
+            imageBytes: image.bytes,
+            imageMimeType: image.mimeType,
+            imageName: image.name,
+          }
+        : {}),
     },
   })
 

@@ -35,6 +35,8 @@ export type Medicine = {
   storageLocation: string
   usageNote: string
   safetyNote: string
+  hasImage?: boolean
+  imageName?: string
 }
 
 export type AllergyRecord = {
@@ -345,13 +347,29 @@ export function getVisitPreparationForMember(memberId: string) {
   return visitPreparations.find((item) => item.memberId === memberId)
 }
 
-export function getMedicineStatus(expiresAt: string) {
+function parseMedicineQuantity(quantity: string) {
+  const match = quantity.trim().match(/^(\d+)/)
+
+  if (!match) {
+    return undefined
+  }
+
+  const parsed = Number.parseInt(match[1], 10)
+  return Number.isNaN(parsed) ? undefined : parsed
+}
+
+export function getMedicineStatus(expiresAt: string, quantity = "") {
   const today = new Date("2026-04-25T00:00:00+08:00")
   const expires = new Date(`${expiresAt}T00:00:00+08:00`)
   const daysLeft = Math.ceil((expires.getTime() - today.getTime()) / 86_400_000)
+  const parsedQuantity = parseMedicineQuantity(quantity)
 
   if (daysLeft < 0) {
     return { label: "已过期", tone: "destructive" as const, daysLeft }
+  }
+
+  if (typeof parsedQuantity === "number" && parsedQuantity <= 1) {
+    return { label: "库存不足", tone: "outline" as const, daysLeft }
   }
 
   if (daysLeft <= 60) {

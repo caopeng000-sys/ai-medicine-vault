@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server"
 
 import { createMedicine } from "@/features/medicine-vault/repository"
-import { createMedicineSchema } from "@/features/medicine-vault/schemas"
+import { parseMedicineSubmission } from "@/features/medicine-vault/medicine-request"
 
 export async function POST(request: Request) {
   try {
-    const input = createMedicineSchema.parse(await request.json())
-    const medicine = await createMedicine(input)
+    const { input, image } = await parseMedicineSubmission(request)
+    const medicine = await createMedicine(input, image)
 
     return NextResponse.json({
       message: "药品记录已写入数据库。",

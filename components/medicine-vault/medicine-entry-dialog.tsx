@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { LoaderCircleIcon, SparklesIcon, UploadIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
 
@@ -34,6 +34,8 @@ const fields = [
   { name: "category", label: "分类", placeholder: "例如：抗感染" },
   { name: "dosage", label: "剂量", placeholder: "例如：0.25g/粒" },
   { name: "specification", label: "规格", placeholder: "例如：0.25g * 24 粒" },
+  { name: "quantity", label: "库存数量", placeholder: "例如：1 盒" },
+  { name: "storageLocation", label: "存放位置", placeholder: "例如：客厅药箱" },
   { name: "purpose", label: "治疗疾病", placeholder: "例如：用于缓解发热和轻中度疼痛。" },
   { name: "expiresAt", label: "有效期", placeholder: "例如：2027-01-31" },
 ] as const
@@ -43,6 +45,16 @@ const textareaFields = [
     name: "instructions",
     label: "使用说明",
     placeholder: "记录服用方式、频率或特别提醒。",
+  },
+  {
+    name: "usageNote",
+    label: "补充说明",
+    placeholder: "例如：过敏性鼻炎发作时按说明或医嘱使用。",
+  },
+  {
+    name: "safetyNote",
+    label: "安全提醒",
+    placeholder: "例如：不要重复叠加同类退烧药。",
   },
 ] as const
 
@@ -54,7 +66,7 @@ export function MedicineEntryDialog({
   triggerIcon,
   medicineId,
   dialogTitle = "新增药品记录",
-  dialogDescription = "先上传药盒或说明书图片，AI 会帮你回填药品信息；保存前你仍然可以手动修改。",
+  dialogDescription = "先上传药盒或说明书图片，AI 会帮你回填药品信息；保存时图片也会一并存入数据库，方便后续查找。",
   submitLabel = "保存药品",
   initialValues: initialValuesProp,
 }: Readonly<{
@@ -82,17 +94,20 @@ export function MedicineEntryDialog({
   const [values, setValues] = useState<Record<string, string>>(initialValues)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imageName, setImageName] = useState("")
+  const [imagePreviewUrl, setImagePreviewUrl] = useState("")
   const [isExtracting, setIsExtracting] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
   const [successMessage, setSuccessMessage] = useState("")
   const [aiSummary, setAiSummary] = useState("")
   const [warnings, setWarnings] = useState<string[]>([])
+  const imageInputRef = useRef<HTMLInputElement>(null)
 
   function resetDialog() {
     setValues(initialValues)
     setImageFile(null)
     setImageName("")
+    setImagePreviewUrl("")
     setIsExtracting(false)
     setIsSubmitting(false)
     setErrorMessage("")
@@ -119,6 +134,29 @@ export function MedicineEntryDialog({
     setImageName(file?.name ?? "")
     setErrorMessage("")
   }
+
+  function openFilePicker() {
+    if (!imageInputRef.current) {
+      return
+    }
+
+    imageInputRef.current.value = ""
+    imageInputRef.current.click()
+  }
+
+  useEffect(() => {
+    if (!imageFile) {
+      setImagePreviewUrl("")
+      return
+    }
+
+    const previewUrl = URL.createObjectURL(imageFile)
+    setImagePreviewUrl(previewUrl)
+
+    return () => {
+      URL.revokeObjectURL(previewUrl)
+    }
+  }, [imageFile])
 
   async function handleExtract() {
     if (!imageFile) {
@@ -174,15 +212,38 @@ export function MedicineEntryDialog({
       setErrorMessage("")
       setSuccessMessage("")
 
-      const response = await fetch(medicineId ? `/api/medicines/${medicineId}` : "/api/medicines", {
+      const endpoint = medicineId ? `/api/medicines/${medicineId}` : "/api/medicines"
+      const hasImage = Boolean(imageFile)
+      const uploadedImage = imageFile
+      const response = await fetch(endpoint, {
         method: medicineId ? "PATCH" : "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...values,
-          memberId,
-        }),
+        headers: hasImage ? undefined : { "Content-Type": "application/json" },
+        body: hasImage
+          ? (() => {
+              if (!uploadedImage) {
+                throw new Error("请先选择一张药品图片。")
+              }
+
+              const formData = new FormData()
+              formData.append("memberId", memberId)
+              formData.append("name", values.name)
+              formData.append("category", values.category)
+              formData.append("dosage", values.dosage)
+              formData.append("specification", values.specification)
+              formData.append("quantity", values.quantity)
+              formData.append("storageLocation", values.storageLocation)
+              formData.append("purpose", values.purpose)
+              formData.append("expiresAt", values.expiresAt)
+              formData.append("instructions", values.instructions)
+              formData.append("usageNote", values.usageNote)
+              formData.append("safetyNote", values.safetyNote)
+              formData.append("image", uploadedImage)
+              return formData
+            })()
+          : JSON.stringify({
+              ...values,
+              memberId,
+            }),
       })
       const result = (await response.json()) as { message?: string }
 
@@ -245,13 +306,46 @@ export function MedicineEntryDialog({
 
             <div className="grid gap-2">
               <Label htmlFor="medicine-image">上传图片</Label>
-              <div className="rounded-xl border border-dashed border-slate-300 bg-white p-4">
-                <label className="flex cursor-pointer flex-col items-center justify-center gap-2 text-center text-sm text-slate-500" htmlFor="medicine-image">
-                  <UploadIcon className="size-5 text-slate-400" aria-hidden="true" />
-                  <span>{imageName || "点击选择一张本地图片"}</span>
-                </label>
-                <Input accept="image/*" className="hidden" id="medicine-image" onChange={handleFileChange} type="file" />
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-3">
+                {imagePreviewUrl ? (
+                  <button
+                    className="group relative block w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 text-left shadow-sm transition hover:border-slate-300"
+                    onClick={openFilePicker}
+                    type="button"
+                  >
+                    <img
+                      alt={imageName || "药品图片预览"}
+                      className="h-56 w-full object-contain bg-white transition duration-200 group-hover:scale-[1.01]"
+                      src={imagePreviewUrl}
+                    />
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/70 via-slate-950/35 to-transparent px-4 py-3">
+                      <p className="text-sm font-medium text-white">点击图片可重新选择</p>
+                      <p className="mt-0.5 truncate text-xs text-white/80">{imageName}</p>
+                    </div>
+                  </button>
+                ) : (
+                  <button
+                    className="flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-200 bg-slate-50 py-8 text-center text-sm text-slate-500 transition hover:border-slate-300 hover:bg-white"
+                    onClick={openFilePicker}
+                    type="button"
+                  >
+                    <UploadIcon className="size-5 text-slate-400" aria-hidden="true" />
+                    <span>点击选择一张本地图片</span>
+                    <span className="text-xs text-slate-400">支持药盒、标签、说明书图片</span>
+                  </button>
+                )}
+                <Input
+                  accept="image/*"
+                  className="hidden"
+                  id="medicine-image"
+                  onChange={handleFileChange}
+                  ref={imageInputRef}
+                  type="file"
+                />
               </div>
+              <p className="text-xs leading-5 text-slate-400">
+                选中的图片会直接展示在这里，保存时也会一并入库，后续可以直接按药品记录回看。
+              </p>
             </div>
 
             {aiSummary ? (

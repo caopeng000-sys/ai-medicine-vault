@@ -33,9 +33,13 @@ export const createMedicineSchema = z.object({
   category: z.string().trim().min(1, "请填写药品分类。"),
   dosage: z.string().trim().min(1, "请填写剂量。"),
   specification: z.string().trim().min(1, "请填写规格。"),
+  quantity: z.string().trim().default(""),
+  storageLocation: z.string().trim().default(""),
   expiresAt: z.string().trim().min(1, "请填写有效期。"),
   instructions: z.string().trim().min(1, "请填写使用说明。"),
   purpose: z.string().trim().min(1, "请填写治疗疾病或适应症。"),
+  usageNote: z.string().trim().default(""),
+  safetyNote: z.string().trim().default(""),
 })
 
 export const createAllergyRecordSchema = z.object({
