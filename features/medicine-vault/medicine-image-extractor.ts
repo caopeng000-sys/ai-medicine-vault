@@ -2,7 +2,7 @@ import { createDashscopeChatCompletion } from "@/lib/ai/dashscope"
 
 import { extractedMedicineSchema, medicineExtractionFieldNames } from "./schemas"
 
-export type { ExtractedMedicineData } from "./schemas"
+import type { ExtractedMedicineData } from "./schemas"
 
 function extractJsonBlock(text: string) {
   const fencedMatch = text.match(/```json\s*([\s\S]*?)```/i)
@@ -20,9 +20,7 @@ function extractJsonBlock(text: string) {
   return trimmed
 }
 
-export async function extractMedicineFromImage(
-  dataUrl: string
-): Promise<import("./schemas").ExtractedMedicineData> {
+export async function extractMedicineFromImage(dataUrl: string): Promise<ExtractedMedicineData> {
   const prompt = [
     "你是一个用于家庭药品资料整理的视觉识别助手。",
     "请只根据图片中的药盒、标签或说明书原文提取信息，不要臆测。",

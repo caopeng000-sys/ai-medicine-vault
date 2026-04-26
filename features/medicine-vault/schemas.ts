@@ -65,17 +65,9 @@ export const extractedMedicineSchema = z.object({
   originalText: z.string().trim().default(""),
 })
 
-export const medicineExtractionFieldNames = [
-  "name",
-  "category",
-  "dosage",
-  "specification",
-  "instructions",
-  "purpose",
-  "summary",
-  "warnings",
-  "originalText",
-] as const
+export const medicineExtractionFieldNames = Object.keys(
+  extractedMedicineSchema.shape
+) as Array<keyof typeof extractedMedicineSchema.shape>
 
 export type CreateMemberInput = z.infer<typeof createMemberSchema>
 export type UpdateMemberInput = z.infer<typeof updateMemberSchema>
