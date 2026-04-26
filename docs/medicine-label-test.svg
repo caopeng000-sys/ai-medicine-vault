@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900">
+  <rect width="1400" height="900" fill="#ffffff"/>
+  <rect x="70" y="60" width="1260" height="180" rx="28" fill="#eef6ff" stroke="#c7d8f2" stroke-width="4"/>
+  <rect x="70" y="270" width="1260" height="560" rx="28" fill="#fafafa" stroke="#d9dee7" stroke-width="4"/>
+
+  <text x="120" y="135" font-family="PingFang SC, Helvetica, Arial, sans-serif" font-size="58" font-weight="700" fill="#173d73">
+    布洛芬缓释胶囊
+  </text>
+  <text x="120" y="195" font-family="PingFang SC, Helvetica, Arial, sans-serif" font-size="36" font-weight="500" fill="#2f5f99">
+    0.3g/粒
+  </text>
+
+  <g transform="translate(930,105)">
+    <rect x="0" y="0" width="76" height="36" rx="18" fill="#61b7ff"/>
+    <rect x="90" y="0" width="76" height="36" rx="18" fill="#ff7d7d"/>
+    <rect x="180" y="0" width="76" height="36" rx="18" fill="#8bd18b"/>
+    <rect x="270" y="0" width="76" height="36" rx="18" fill="#ffd166"/>
+  </g>
+
+  <text x="120" y="350" font-family="PingFang SC, Helvetica, Arial, sans-serif" font-size="32" fill="#333333">
+    适应症：用于缓解轻中度疼痛和发热
+  </text>
+  <text x="120" y="410" font-family="PingFang SC, Helvetica, Arial, sans-serif" font-size="32" fill="#333333">
+    用法用量：口服，按说明书或医嘱使用
+  </text>
+  <text x="120" y="470" font-family="PingFang SC, Helvetica, Arial, sans-serif" font-size="32" fill="#333333">
+    规格：0.3g × 20粒
+  </text>
+  <text x="120" y="530" font-family="PingFang SC, Helvetica, Arial, sans-serif" font-size="32" fill="#b84d31">
+    注意事项：胃部不适、重复用药需谨慎
+  </text>
+  <text x="120" y="590" font-family="PingFang SC, Helvetica, Arial, sans-serif" font-size="32" fill="#333333">
+    有效期：2027-10-23
+  </text>
+
+  <g transform="translate(120,650)">
+    <rect x="0" y="0" width="1100" height="64" rx="18" fill="#ffffff" stroke="#d9dee7" stroke-width="3"/>
+    <text x="34" y="42" font-family="PingFang SC, Helvetica, Arial, sans-serif" font-size="28" fill="#4b5563">
+      药盒正面测试图，请以药盒和说明书原文为准
+    </text>
+  </g>
+  <g transform="translate(120,730)">
+    <rect x="0" y="0" width="1100" height="64" rx="18" fill="#ffffff" stroke="#d9dee7" stroke-width="3"/>
+    <text x="34" y="42" font-family="PingFang SC, Helvetica, Arial, sans-serif" font-size="28" fill="#4b5563">
+      家庭健康资料台自动化回归测试样例
+    </text>
+  </g>
+</svg>
