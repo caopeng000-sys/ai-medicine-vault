@@ -1,6 +1,6 @@
 import { createDashscopeChatCompletion } from "@/lib/ai/dashscope"
 
-import { extractedMedicineSchema, type ExtractedMedicineData } from "./schemas"
+import { extractedMedicineSchema, medicineExtractionFieldNames } from "./schemas"
 
 export type { ExtractedMedicineData } from "./schemas"
 
@@ -11,24 +11,25 @@ function extractJsonBlock(text: string) {
     return fencedMatch[1].trim()
   }
 
-  const start = text.indexOf("{")
-  const end = text.lastIndexOf("}")
+  const trimmed = text.trim()
 
-  if (start === -1 || end === -1 || end <= start) {
+  if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
     throw new Error("AI 没有返回可解析的结构化结果。")
   }
 
-  return text.slice(start, end + 1)
+  return trimmed
 }
 
-export async function extractMedicineFromImage(dataUrl: string): Promise<ExtractedMedicineData> {
+export async function extractMedicineFromImage(
+  dataUrl: string
+): Promise<import("./schemas").ExtractedMedicineData> {
   const prompt = [
     "你是一个用于家庭药品资料整理的视觉识别助手。",
     "请只根据图片中的药盒、标签或说明书原文提取信息，不要臆测。",
     "如果看不清，请返回空字符串，不要编造。",
     "请严格返回 JSON，不要输出额外说明。",
     "JSON 字段必须包含：",
-    "name, category, dosage, specification, instructions, purpose, summary, warnings, originalText",
+    medicineExtractionFieldNames.join(", "),
     "其中：",
     "- category 使用简短中文分类，如：抗感染、止痛退烧、抗过敏、感冒对症、营养补充、设备耗材。",
     "- purpose 表示治疗疾病或适应症，用简短中文说明。",

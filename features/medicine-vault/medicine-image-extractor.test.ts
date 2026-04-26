@@ -12,9 +12,8 @@ describe("extractMedicineFromImage", () => {
 
     process.env.DASHSCOPE_API_KEY = "test-key"
     globalThis.fetch = async () =>
-      ({
-        ok: true,
-        json: async () => ({
+      new Response(
+        JSON.stringify({
           choices: [
             {
               message: {
@@ -33,7 +32,13 @@ describe("extractMedicineFromImage", () => {
             },
           ],
         }),
-      }) as Response
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+          },
+        }
+      )
 
     try {
       const result = await extractMedicineFromImage(dataUrl)
