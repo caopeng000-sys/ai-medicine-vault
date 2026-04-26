@@ -31,11 +31,11 @@ export async function POST(request: Request) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer())
-    const data = await extractMedicineFromImage(toDataUrl(file, buffer))
+    const extracted = await extractMedicineFromImage(toDataUrl(file, buffer))
 
     return NextResponse.json({
       message: "图片识别完成。",
-      data,
+      data: extracted,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : "图片识别失败。"

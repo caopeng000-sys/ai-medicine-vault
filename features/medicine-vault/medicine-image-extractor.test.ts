@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
 import { extractMedicineFromImage } from "./medicine-image-extractor"
+import { buildMedicineExtractionPrompt } from "./medicine-image-extractor"
 
 describe("extractMedicineFromImage", () => {
   it("returns richer medicine fields for a clear medicine label", async () => {
@@ -60,5 +61,16 @@ describe("extractMedicineFromImage", () => {
         process.env.DASHSCOPE_API_KEY = originalApiKey
       }
     }
+  })
+})
+
+describe("buildMedicineExtractionPrompt", () => {
+  it("asks for original text, summarized dosage, treatment range and confidence hints", () => {
+    const prompt = buildMedicineExtractionPrompt()
+
+    assert.match(prompt, /原文/)
+    assert.match(prompt, /用法用量/)
+    assert.match(prompt, /治疗范围/)
+    assert.match(prompt, /低置信度/)
   })
 })

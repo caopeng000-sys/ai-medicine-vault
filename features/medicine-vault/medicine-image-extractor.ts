@@ -4,6 +4,16 @@ import { extractedMedicineSchema, medicineExtractionFieldNames } from "./schemas
 
 import type { ExtractedMedicineData } from "./schemas"
 
+export function buildMedicineExtractionPrompt() {
+  return [
+    "你是一个用于家庭药品资料整理的视觉识别助手。",
+    "先尽量识别图片中的原文，再基于原文整理结构化字段。",
+    "请返回原文、药名、规格、剂量、剂型、用法用量、治疗范围、注意事项、摘要和低置信度提醒。",
+    "如果看不清，请返回空字符串，不要臆测。",
+    "请严格返回 JSON，不要输出额外说明。",
+  ].join("\n")
+}
+
 function extractJsonBlock(text: string) {
   const fencedMatch = text.match(/```json\s*([\s\S]*?)```/i)
 
@@ -22,10 +32,8 @@ function extractJsonBlock(text: string) {
 
 export async function extractMedicineFromImage(dataUrl: string): Promise<ExtractedMedicineData> {
   const prompt = [
-    "你是一个用于家庭药品资料整理的视觉识别助手。",
+    buildMedicineExtractionPrompt(),
     "请只根据图片中的药盒、标签或说明书原文提取信息，不要臆测。",
-    "如果看不清，请返回空字符串，不要编造。",
-    "请严格返回 JSON，不要输出额外说明。",
     "JSON 字段必须包含：",
     medicineExtractionFieldNames.join(", "),
     "其中：",
