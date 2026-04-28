@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { requireCurrentUser } from "@/features/medicine-vault/auth-context"
 import {
   listAllergyRecords,
   listMedicalRecords,
@@ -23,12 +24,15 @@ import {
   listMedicines,
 } from "@/features/medicine-vault/repository"
 
+export const dynamic = "force-dynamic"
+
 export default async function MembersPage() {
+  const ctx = await requireCurrentUser()
   const [members, medicalRecords, medicines, allergies] = await Promise.all([
-    listMembers(),
-    listMedicalRecords(),
-    listMedicines(),
-    listAllergyRecords(),
+    listMembers(ctx),
+    listMedicalRecords(ctx),
+    listMedicines(ctx),
+    listAllergyRecords(ctx),
   ])
 
   return (

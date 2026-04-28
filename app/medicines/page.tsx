@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { requireCurrentUser } from "@/features/medicine-vault/auth-context"
 import { getMedicineStatus, parseMedicineQuantity } from "@/features/medicine-vault/data"
 import {
   DEFAULT_MEDICINE_PAGE_SIZE,
@@ -27,6 +28,8 @@ import {
   listMedicines,
   listMedicinesPaginated,
 } from "@/features/medicine-vault/repository"
+
+export const dynamic = "force-dynamic"
 
 export default async function MedicinesPage({
   searchParams,
@@ -38,11 +41,12 @@ export default async function MedicinesPage({
   const normalizedCategory = category?.trim() ?? ""
   const parsedPage = Number.parseInt(page ?? "1", 10)
   const currentPage = Number.isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage
+  const ctx = await requireCurrentUser()
   const [members, allMedicinesCatalog, allMedicines, paginatedMedicines] = await Promise.all([
-    listMembers(),
-    listMedicines(undefined, undefined, undefined),
-    listMedicines(undefined, normalizedQuery, normalizedCategory),
-    listMedicinesPaginated({
+    listMembers(ctx),
+    listMedicines(ctx, undefined, undefined, undefined),
+    listMedicines(ctx, undefined, normalizedQuery, normalizedCategory),
+    listMedicinesPaginated(ctx, {
       category: normalizedCategory,
       query: normalizedQuery,
       page: currentPage,

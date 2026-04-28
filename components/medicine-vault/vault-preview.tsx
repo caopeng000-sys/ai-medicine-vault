@@ -4,6 +4,7 @@ import type * as React from "react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import type { RepositoryContext } from "@/features/medicine-vault/auth-context"
 import {
   listAllergyRecords,
   listMedicalRecords,
@@ -34,13 +35,13 @@ const insightItems: {
   },
 ]
 
-export async function VaultPreview() {
+export async function VaultPreview({ ctx }: Readonly<{ ctx: RepositoryContext }>) {
   const [members, visitPreparations, medicalRecords, medicines, allergyRecords] = await Promise.all([
-    listMembers(),
-    listVisitPreparations(),
-    listMedicalRecords(),
-    listMedicines(),
-    listAllergyRecords(),
+    listMembers(ctx),
+    listVisitPreparations(ctx),
+    listMedicalRecords(ctx),
+    listMedicines(ctx),
+    listAllergyRecords(ctx),
   ])
   const activeMember = members[0]
   const activePreparation = visitPreparations[0]

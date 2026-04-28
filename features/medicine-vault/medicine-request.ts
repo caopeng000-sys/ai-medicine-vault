@@ -29,9 +29,13 @@ async function parseMultipartPayload(request: Request): Promise<MedicineSubmissi
     category: toText(formData.get("category")),
     dosage: toText(formData.get("dosage")),
     specification: toText(formData.get("specification")),
+    quantity: toText(formData.get("quantity")),
+    storageLocation: toText(formData.get("storageLocation")),
     expiresAt: toText(formData.get("expiresAt")),
     instructions: toText(formData.get("instructions")),
     purpose: toText(formData.get("purpose")),
+    usageNote: toText(formData.get("usageNote")),
+    safetyNote: toText(formData.get("safetyNote")),
   }
 
   const input = createMedicineSchema.parse(payload)

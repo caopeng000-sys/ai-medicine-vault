@@ -17,8 +17,22 @@ enum AllergySeverity {
   严重
 }
 
+model User {
+  id                String             @id @default(cuid())
+  email             String?            @unique
+  name              String
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  members           Member[]
+  medicalRecords    MedicalRecord[]
+  medicines         Medicine[]
+  allergyRecords    AllergyRecord[]
+  visitPreparations VisitPreparation[]
+}
+
 model Member {
   id               String            @id @default(cuid())
+  userId           String
   name             String
   relationship     String
   birthYear        Int?
@@ -31,12 +45,14 @@ model Member {
   medicines        Medicine[]
   allergyRecords   AllergyRecord[]
   visitPreparations VisitPreparation[]
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([name])
+  @@index([userId, name])
 }
 
 model MedicalRecord {
   id               String   @id @default(cuid())
+  userId           String
   memberId         String
   visitedAt        DateTime
   hospitalName     String
@@ -49,12 +65,14 @@ model MedicalRecord {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   member           Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([memberId, visitedAt(sort: Desc)])
+  @@index([userId, memberId, visitedAt(sort: Desc)])
 }
 
 model Medicine {
   id              String   @id @default(cuid())
+  userId          String
   memberId        String
   name            String
   category        String
@@ -73,12 +91,14 @@ model Medicine {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   member          Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([memberId, expiresAt(sort: Asc)])
+  @@index([userId, memberId, expiresAt(sort: Asc)])
 }
 
 model AllergyRecord {
   id           String          @id @default(cuid())
+  userId       String
   memberId     String
   allergen     String
   reaction     String
@@ -88,12 +108,14 @@ model AllergyRecord {
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
   member       Member          @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([memberId, discoveredAt(sort: Desc)])
+  @@index([userId, memberId, discoveredAt(sort: Desc)])
 }
 
 model VisitPreparation {
   id        String   @id @default(cuid())
+  userId    String
   memberId  String
   concern   String
   summary   String
@@ -101,6 +123,7 @@ model VisitPreparation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([memberId, createdAt(sort: Desc)])
+  @@index([userId, memberId, createdAt(sort: Desc)])
 }

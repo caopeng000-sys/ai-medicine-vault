@@ -14,6 +14,7 @@ import { VaultPreview } from "@/components/medicine-vault/vault-preview"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { requireCurrentUser } from "@/features/medicine-vault/auth-context"
 import {
   listAllergyRecords,
   listMedicalRecords,
@@ -29,13 +30,16 @@ const quickActions = [
   { href: "/visit-prep", label: "生成就医清单", icon: ClipboardListIcon },
 ]
 
+export const dynamic = "force-dynamic"
+
 export default async function Home() {
+  const ctx = await requireCurrentUser()
   const [members, medicalRecords, medicines, allergyRecords, visitPreparations] = await Promise.all([
-    listMembers(),
-    listMedicalRecords(),
-    listMedicines(),
-    listAllergyRecords(),
-    listVisitPreparations(),
+    listMembers(ctx),
+    listMedicalRecords(ctx),
+    listMedicines(ctx),
+    listAllergyRecords(ctx),
+    listVisitPreparations(ctx),
   ])
   const latestRecord = medicalRecords[0]
   const activePreparation = visitPreparations[0]
@@ -144,7 +148,7 @@ export default async function Home() {
             </CardContent>
           </Card>
 
-          <VaultPreview />
+          <VaultPreview ctx={ctx} />
         </section>
 
         <section className="mt-6 grid gap-4 lg:grid-cols-2">

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { requireCurrentUser } from "@/features/medicine-vault/auth-context"
 import { deleteMember, getMemberById, updateMember } from "@/features/medicine-vault/repository"
 import { updateMemberSchema } from "@/features/medicine-vault/schemas"
 
@@ -8,15 +9,16 @@ export async function PATCH(
   context: { params: Promise<{ memberId: string }> }
 ) {
   try {
+    const ctx = await requireCurrentUser()
     const { memberId } = await context.params
-    const existingMember = await getMemberById(memberId)
+    const existingMember = await getMemberById(ctx, memberId)
 
     if (!existingMember) {
       return NextResponse.json({ message: "成员不存在。" }, { status: 404 })
     }
 
     const input = updateMemberSchema.parse(await request.json())
-    const member = await updateMember(memberId, input)
+    const member = await updateMember(ctx, memberId, input)
 
     return NextResponse.json({
       message: "成员信息已更新。",
@@ -33,14 +35,15 @@ export async function DELETE(
   context: { params: Promise<{ memberId: string }> }
 ) {
   try {
+    const ctx = await requireCurrentUser()
     const { memberId } = await context.params
-    const existingMember = await getMemberById(memberId)
+    const existingMember = await getMemberById(ctx, memberId)
 
     if (!existingMember) {
       return NextResponse.json({ message: "成员不存在。" }, { status: 404 })
     }
 
-    const member = await deleteMember(memberId)
+    const member = await deleteMember(ctx, memberId)
 
     return NextResponse.json({
       message: `已删除成员“${member.name}”及其关联记录。`,

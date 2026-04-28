@@ -1,6 +1,7 @@
 import type { MedicalRecord, Medicine, Member } from "./data"
 import { createDashscopeChatCompletion } from "@/lib/ai/dashscope"
 
+import type { RepositoryContext } from "./auth-context"
 import { listMedicalRecords, listMedicines, listMembers } from "./repository"
 import {
   detectAssistantIntent,
@@ -45,9 +46,9 @@ type AssistantDependencies = Readonly<{
     sources: AssistantSource[]
     context: string
   }) => Promise<string>
-  listMembers: () => Promise<Member[]>
-  listMedicalRecords: () => Promise<MedicalRecord[]>
-  listMedicines: () => Promise<Medicine[]>
+  listMembers: (ctx: RepositoryContext) => Promise<Member[]>
+  listMedicalRecords: (ctx: RepositoryContext) => Promise<MedicalRecord[]>
+  listMedicines: (ctx: RepositoryContext) => Promise<Medicine[]>
 }>
 
 const UNSUPPORTED_MESSAGE = "这类问题我现在还不支持。你可以问我上次什么时候感冒，或者家里有哪些抗过敏药。"
@@ -284,6 +285,7 @@ const defaultDependencies: AssistantDependencies = {
 }
 
 export async function resolveAssistantQuery(
+  ctx: RepositoryContext,
   question: string,
   dependencies: Partial<AssistantDependencies> = {},
 ): Promise<AssistantQueryResponse> {
@@ -314,7 +316,7 @@ export async function resolveAssistantQuery(
   }
 
   if (classification.intent === "recent_cold_record") {
-    const [members, records] = await Promise.all([runtime.listMembers(), runtime.listMedicalRecords()])
+    const [members, records] = await Promise.all([runtime.listMembers(ctx), runtime.listMedicalRecords(ctx)])
     const match = findRecentColdRecord(records, members)
 
     if (!match) {
@@ -355,7 +357,7 @@ export async function resolveAssistantQuery(
   }
 
   if (classification.intent === "medicine_query") {
-    const [members, medicines] = await Promise.all([runtime.listMembers(), runtime.listMedicines()])
+    const [members, medicines] = await Promise.all([runtime.listMembers(ctx), runtime.listMedicines(ctx)])
     const selection = await runtime.selectMedicines(normalizedQuestion, medicines, members)
     const selectedIdSet = new Set(selection.selectedIds)
     const selectedMedicines = medicines.filter((medicine) => selectedIdSet.has(medicine.id))

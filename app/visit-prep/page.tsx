@@ -3,6 +3,7 @@ import { ClipboardListIcon, FileTextIcon, PillIcon, ShieldAlertIcon, ShieldCheck
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { requireCurrentUser } from "@/features/medicine-vault/auth-context"
 import {
   listAllergyRecords,
   listMedicalRecords,
@@ -11,13 +12,16 @@ import {
   listVisitPreparations,
 } from "@/features/medicine-vault/repository"
 
+export const dynamic = "force-dynamic"
+
 export default async function VisitPreparationPage() {
+  const ctx = await requireCurrentUser()
   const [members, visitPreparations, medicalRecords, medicines, allergies] = await Promise.all([
-    listMembers(),
-    listVisitPreparations(),
-    listMedicalRecords(),
-    listMedicines(),
-    listAllergyRecords(),
+    listMembers(ctx),
+    listVisitPreparations(ctx),
+    listMedicalRecords(ctx),
+    listMedicines(ctx),
+    listAllergyRecords(ctx),
   ])
   const preparation = visitPreparations[0]
   const member = members.find((item) => item.id === preparation?.memberId) ?? members[0]

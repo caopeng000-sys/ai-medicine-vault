@@ -1,6 +1,7 @@
 import { getPrismaClient } from "@/lib/db"
 import type { AllergySeverity } from "@prisma/client"
 
+import type { RepositoryContext } from "@/features/medicine-vault/auth-context"
 import type {
   AllergyRecord,
   MedicalRecord,
@@ -15,6 +16,11 @@ import {
   medicines as mockMedicines,
   visitPreparations as mockVisitPreparations,
 } from "@/features/medicine-vault/data"
+import {
+  DEFAULT_MEDICINE_PAGE_SIZE,
+  paginateMedicines,
+  sortMedicinesForDisplay,
+} from "@/features/medicine-vault/medicine-pagination"
 import type {
   CreateAllergyRecordInput,
   CreateMedicalRecordInput,
@@ -23,6 +29,24 @@ import type {
   UpdateMemberInput,
 } from "@/features/medicine-vault/schemas"
 import type { MedicineImageAttachment } from "@/features/medicine-vault/medicine-request"
+
+export type MedicinePageQuery = Readonly<{
+  memberId?: string
+  query?: string
+  category?: string
+  page: number
+  pageSize: number
+}>
+
+export type PaginatedMedicines = Readonly<{
+  items: Medicine[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}>
+
+export { DEFAULT_MEDICINE_PAGE_SIZE } from "@/features/medicine-vault/medicine-pagination"
 
 function toDateOnly(value: string) {
   return new Date(`${value}T00:00:00.000Z`)
@@ -34,6 +58,7 @@ function formatDateOnly(value: Date) {
 
 function mapMember(member: {
   id: string
+  userId: string
   name: string
   relationship: string
   birthYear: number | null
@@ -43,6 +68,7 @@ function mapMember(member: {
 }): Member {
   return {
     id: member.id,
+    userId: member.userId,
     name: member.name,
     relationship: member.relationship,
     birthYear: member.birthYear ?? 1990,
@@ -54,6 +80,7 @@ function mapMember(member: {
 
 function mapMedicalRecord(record: {
   id: string
+  userId: string
   memberId: string
   visitedAt: Date
   hospitalName: string
@@ -66,6 +93,7 @@ function mapMedicalRecord(record: {
 }): MedicalRecord {
   return {
     id: record.id,
+    userId: record.userId,
     memberId: record.memberId,
     visitedAt: formatDateOnly(record.visitedAt),
     hospitalName: record.hospitalName,
@@ -80,6 +108,7 @@ function mapMedicalRecord(record: {
 
 function mapMedicine(medicine: {
   id: string
+  userId: string
   memberId: string
   name: string
   category: string
@@ -97,6 +126,7 @@ function mapMedicine(medicine: {
 }): Medicine {
   return {
     id: medicine.id,
+    userId: medicine.userId,
     memberId: medicine.memberId,
     name: medicine.name,
     category: medicine.category,
@@ -116,6 +146,7 @@ function mapMedicine(medicine: {
 
 function mapAllergyRecord(record: {
   id: string
+  userId: string
   memberId: string
   allergen: string
   reaction: string
@@ -125,6 +156,7 @@ function mapAllergyRecord(record: {
 }): AllergyRecord {
   return {
     id: record.id,
+    userId: record.userId,
     memberId: record.memberId,
     allergen: record.allergen,
     reaction: record.reaction,
@@ -135,12 +167,14 @@ function mapAllergyRecord(record: {
 }
 
 function mapVisitPreparation(item: {
+  userId: string
   memberId: string
   concern: string
   summary: string
   questions: string[]
 }): VisitPreparation {
   return {
+    userId: item.userId,
     memberId: item.memberId,
     concern: item.concern,
     summary: item.summary,
@@ -168,73 +202,117 @@ export function isDatabaseConfigured() {
   return Boolean(process.env.DATABASE_URL)
 }
 
-export async function listMembers() {
+function memberBelongsToUser(ctx: RepositoryContext, memberId: string) {
+  return mockMembers.some((member) => member.id === memberId && member.userId === ctx.userId)
+}
+
+function assertMockMemberBelongsToUser(ctx: RepositoryContext, memberId: string) {
+  if (!memberBelongsToUser(ctx, memberId)) {
+    throw new Error("成员不存在或不属于当前用户。")
+  }
+}
+
+async function assertDatabaseMemberBelongsToUser(ctx: RepositoryContext, memberId: string) {
   const prisma = getPrismaClient()
 
   if (!prisma) {
-    return mockMembers
+    assertMockMemberBelongsToUser(ctx, memberId)
+    return
+  }
+
+  const member = await prisma.member.findFirst({
+    where: {
+      id: memberId,
+      userId: ctx.userId,
+    },
+    select: { id: true },
+  })
+
+  if (!member) {
+    throw new Error("成员不存在或不属于当前用户。")
+  }
+}
+
+export async function listMembers(ctx: RepositoryContext) {
+  const prisma = getPrismaClient()
+
+  if (!prisma) {
+    return mockMembers.filter((member) => member.userId === ctx.userId)
   }
 
   try {
     const members = await prisma.member.findMany({
+      where: { userId: ctx.userId },
       orderBy: { createdAt: "asc" },
     })
 
     return members.map(mapMember)
   } catch {
-    return mockMembers
+    return mockMembers.filter((member) => member.userId === ctx.userId)
   }
 }
 
-export async function getMemberById(memberId: string) {
+export async function getMemberById(ctx: RepositoryContext, memberId: string) {
   const prisma = getPrismaClient()
 
   if (!prisma) {
-    return mockMembers.find((member) => member.id === memberId)
+    return mockMembers.find((member) => member.id === memberId && member.userId === ctx.userId)
   }
 
   try {
-    const member = await prisma.member.findUnique({
-      where: { id: memberId },
+    const member = await prisma.member.findFirst({
+      where: {
+        id: memberId,
+        userId: ctx.userId,
+      },
     })
 
     return member ? mapMember(member) : undefined
   } catch {
-    return mockMembers.find((member) => member.id === memberId)
+    return mockMembers.find((member) => member.id === memberId && member.userId === ctx.userId)
   }
 }
 
-export async function listMedicalRecords(memberId?: string) {
+export async function listMedicalRecords(ctx: RepositoryContext, memberId?: string) {
   const prisma = getPrismaClient()
 
   if (!prisma) {
     return mockMedicalRecords
+      .filter((record) => record.userId === ctx.userId)
       .filter((record) => (memberId ? record.memberId === memberId : true))
       .toSorted((a, b) => b.visitedAt.localeCompare(a.visitedAt))
   }
 
   try {
     const records = await prisma.medicalRecord.findMany({
-      where: memberId ? { memberId } : undefined,
+      where: {
+        userId: ctx.userId,
+        ...(memberId ? { memberId } : {}),
+      },
       orderBy: { visitedAt: "desc" },
     })
 
     return records.map(mapMedicalRecord)
   } catch {
     return mockMedicalRecords
+      .filter((record) => record.userId === ctx.userId)
       .filter((record) => (memberId ? record.memberId === memberId : true))
       .toSorted((a, b) => b.visitedAt.localeCompare(a.visitedAt))
   }
 }
 
-export async function listMedicines(memberId?: string, query?: string) {
+export async function listMedicines(ctx: RepositoryContext, memberId?: string, query?: string, category?: string) {
   const prisma = getPrismaClient()
   const normalizedQuery = query?.trim()
+  const normalizedCategory = category?.trim()
   const hasQuery = Boolean(normalizedQuery)
+  const hasCategory = Boolean(normalizedCategory)
 
   if (!prisma) {
     return mockMedicines.filter((medicine) => {
+      const matchesUser = medicine.userId === ctx.userId
       const matchesMember = memberId ? medicine.memberId === memberId : true
+      const matchesCategory = hasCategory ? medicine.category === normalizedCategory : true
       const searchableText = [
         medicine.name,
         medicine.category,
@@ -251,14 +329,16 @@ export async function listMedicines(memberId?: string, query?: string) {
 
       const matchesQuery = hasQuery ? searchableText.includes(normalizedQuery!.toLowerCase()) : true
 
-      return matchesMember && matchesQuery
+      return matchesUser && matchesMember && matchesCategory && matchesQuery
     })
   }
 
   try {
     const medicines = await prisma.medicine.findMany({
       where: {
+        userId: ctx.userId,
         ...(memberId ? { memberId } : {}),
+        ...(hasCategory ? { category: normalizedCategory } : {}),
         ...(hasQuery
           ? {
               OR: [
@@ -282,7 +362,9 @@ export async function listMedicines(memberId?: string, query?: string) {
     return medicines.map(mapMedicine)
   } catch {
     return mockMedicines.filter((medicine) => {
+      const matchesUser = medicine.userId === ctx.userId
       const matchesMember = memberId ? medicine.memberId === memberId : true
+      const matchesCategory = hasCategory ? medicine.category === normalizedCategory : true
       const searchableText = [
         medicine.name,
         medicine.category,
@@ -299,30 +381,48 @@ export async function listMedicines(memberId?: string, query?: string) {
 
       const matchesQuery = hasQuery ? searchableText.includes(normalizedQuery!.toLowerCase()) : true
 
-      return matchesMember && matchesQuery
+      return matchesUser && matchesMember && matchesCategory && matchesQuery
     })
   }
 }
 
-export async function getMedicineById(medicineId: string) {
+export async function listMedicinesPaginated(
+  ctx: RepositoryContext,
+  {
+    memberId,
+    query,
+    category,
+    page,
+    pageSize = DEFAULT_MEDICINE_PAGE_SIZE,
+  }: MedicinePageQuery
+): Promise<PaginatedMedicines> {
+  const medicines = sortMedicinesForDisplay(await listMedicines(ctx, memberId, query, category))
+
+  return paginateMedicines(medicines, { page, pageSize })
+}
+
+export async function getMedicineById(ctx: RepositoryContext, medicineId: string) {
   const prisma = getPrismaClient()
 
   if (!prisma) {
-    return mockMedicines.find((medicine) => medicine.id === medicineId)
+    return mockMedicines.find((medicine) => medicine.id === medicineId && medicine.userId === ctx.userId)
   }
 
   try {
-    const medicine = await prisma.medicine.findUnique({
-      where: { id: medicineId },
+    const medicine = await prisma.medicine.findFirst({
+      where: {
+        id: medicineId,
+        userId: ctx.userId,
+      },
     })
 
     return medicine ? mapMedicine(medicine) : undefined
   } catch {
-    return mockMedicines.find((medicine) => medicine.id === medicineId)
+    return mockMedicines.find((medicine) => medicine.id === medicineId && medicine.userId === ctx.userId)
   }
 }
 
-export async function getMedicineImageById(medicineId: string) {
+export async function getMedicineImageById(ctx: RepositoryContext, medicineId: string) {
   const prisma = getPrismaClient()
 
   if (!prisma) {
@@ -330,8 +430,11 @@ export async function getMedicineImageById(medicineId: string) {
   }
 
   try {
-    const medicine = await prisma.medicine.findUnique({
-      where: { id: medicineId },
+    const medicine = await prisma.medicine.findFirst({
+      where: {
+        id: medicineId,
+        userId: ctx.userId,
+      },
       select: {
         name: true,
         imageBytes: true,
@@ -355,45 +458,59 @@ export async function getMedicineImageById(medicineId: string) {
   }
 }
 
-export async function listAllergyRecords(memberId?: string) {
+export async function listAllergyRecords(ctx: RepositoryContext, memberId?: string) {
   const prisma = getPrismaClient()
 
   if (!prisma) {
-    return mockAllergyRecords.filter((record) => (memberId ? record.memberId === memberId : true))
+    return mockAllergyRecords
+      .filter((record) => record.userId === ctx.userId)
+      .filter((record) => (memberId ? record.memberId === memberId : true))
   }
 
   try {
     const records = await prisma.allergyRecord.findMany({
-      where: memberId ? { memberId } : undefined,
+      where: {
+        userId: ctx.userId,
+        ...(memberId ? { memberId } : {}),
+      },
       orderBy: { discoveredAt: "desc" },
     })
 
     return records.map(mapAllergyRecord)
   } catch {
-    return mockAllergyRecords.filter((record) => (memberId ? record.memberId === memberId : true))
+    return mockAllergyRecords
+      .filter((record) => record.userId === ctx.userId)
+      .filter((record) => (memberId ? record.memberId === memberId : true))
   }
 }
 
-export async function listVisitPreparations(memberId?: string) {
+export async function listVisitPreparations(ctx: RepositoryContext, memberId?: string) {
   const prisma = getPrismaClient()
 
   if (!prisma) {
-    return mockVisitPreparations.filter((item) => (memberId ? item.memberId === memberId : true))
+    return mockVisitPreparations
+      .filter((item) => item.userId === ctx.userId)
+      .filter((item) => (memberId ? item.memberId === memberId : true))
   }
 
   try {
     const items = await prisma.visitPreparation.findMany({
-      where: memberId ? { memberId } : undefined,
+      where: {
+        userId: ctx.userId,
+        ...(memberId ? { memberId } : {}),
+      },
       orderBy: { createdAt: "desc" },
     })
 
     return items.map(mapVisitPreparation)
   } catch {
-    return mockVisitPreparations.filter((item) => (memberId ? item.memberId === memberId : true))
+    return mockVisitPreparations
+      .filter((item) => item.userId === ctx.userId)
+      .filter((item) => (memberId ? item.memberId === memberId : true))
   }
 }
 
-export async function createMember(input: CreateMemberInput) {
+export async function createMember(ctx: RepositoryContext, input: CreateMemberInput) {
   const prisma = getPrismaClient()
 
   if (!prisma) {
@@ -402,6 +519,15 @@ export async function createMember(input: CreateMemberInput) {
 
   const member = await prisma.member.create({
     data: {
+      user: {
+        connectOrCreate: {
+          where: { id: ctx.userId },
+          create: {
+            id: ctx.userId,
+            name: "当前用户",
+          },
+        },
+      },
       name: input.name,
       relationship: input.relationship,
       gender: input.gender,
@@ -413,11 +539,17 @@ export async function createMember(input: CreateMemberInput) {
   return mapMember(member)
 }
 
-export async function updateMember(memberId: string, input: UpdateMemberInput) {
+export async function updateMember(ctx: RepositoryContext, memberId: string, input: UpdateMemberInput) {
   const prisma = getPrismaClient()
 
   if (!prisma) {
     throw new Error("当前还没有配置 DATABASE_URL，暂时无法写入真实数据库。")
+  }
+
+  const existingMember = await getMemberById(ctx, memberId)
+
+  if (!existingMember) {
+    throw new Error("成员不存在或不属于当前用户。")
   }
 
   const member = await prisma.member.update({
@@ -434,11 +566,17 @@ export async function updateMember(memberId: string, input: UpdateMemberInput) {
   return mapMember(member)
 }
 
-export async function deleteMember(memberId: string) {
+export async function deleteMember(ctx: RepositoryContext, memberId: string) {
   const prisma = getPrismaClient()
 
   if (!prisma) {
     throw new Error("当前还没有配置 DATABASE_URL，暂时无法写入真实数据库。")
+  }
+
+  const existingMember = await getMemberById(ctx, memberId)
+
+  if (!existingMember) {
+    throw new Error("成员不存在或不属于当前用户。")
   }
 
   const member = await prisma.member.delete({
@@ -448,16 +586,19 @@ export async function deleteMember(memberId: string) {
   return mapMember(member)
 }
 
-export async function createMedicalRecord(input: CreateMedicalRecordInput) {
+export async function createMedicalRecord(ctx: RepositoryContext, input: CreateMedicalRecordInput) {
   const prisma = getPrismaClient()
 
   if (!prisma) {
     throw new Error("当前还没有配置 DATABASE_URL，暂时无法写入真实数据库。")
   }
 
+  await assertDatabaseMemberBelongsToUser(ctx, input.memberId)
+
   const { hospitalName, department } = splitHospitalField(input.hospital)
   const record = await prisma.medicalRecord.create({
     data: {
+      userId: ctx.userId,
       memberId: input.memberId,
       visitedAt: toDateOnly(input.visitedAt),
       hospitalName,
@@ -473,15 +614,22 @@ export async function createMedicalRecord(input: CreateMedicalRecordInput) {
   return mapMedicalRecord(record)
 }
 
-export async function createMedicine(input: CreateMedicineInput, image?: MedicineImageAttachment) {
+export async function createMedicine(
+  ctx: RepositoryContext,
+  input: CreateMedicineInput,
+  image?: MedicineImageAttachment
+) {
   const prisma = getPrismaClient()
 
   if (!prisma) {
     throw new Error("当前还没有配置 DATABASE_URL，暂时无法写入真实数据库。")
   }
 
+  await assertDatabaseMemberBelongsToUser(ctx, input.memberId)
+
   const medicine = await prisma.medicine.create({
     data: {
+      userId: ctx.userId,
       memberId: input.memberId,
       name: input.name,
       category: input.category,
@@ -504,6 +652,7 @@ export async function createMedicine(input: CreateMedicineInput, image?: Medicin
 }
 
 export async function updateMedicine(
+  ctx: RepositoryContext,
   medicineId: string,
   input: CreateMedicineInput,
   image?: MedicineImageAttachment
@@ -512,6 +661,14 @@ export async function updateMedicine(
 
   if (!prisma) {
     throw new Error("当前还没有配置 DATABASE_URL，暂时无法写入真实数据库。")
+  }
+
+  await assertDatabaseMemberBelongsToUser(ctx, input.memberId)
+
+  const existingMedicine = await getMedicineById(ctx, medicineId)
+
+  if (!existingMedicine) {
+    throw new Error("药品记录不存在或不属于当前用户。")
   }
 
   const medicine = await prisma.medicine.update({
@@ -542,11 +699,17 @@ export async function updateMedicine(
   return mapMedicine(medicine)
 }
 
-export async function deleteMedicine(medicineId: string) {
+export async function deleteMedicine(ctx: RepositoryContext, medicineId: string) {
   const prisma = getPrismaClient()
 
   if (!prisma) {
     throw new Error("当前还没有配置 DATABASE_URL，暂时无法写入真实数据库。")
+  }
+
+  const existingMedicine = await getMedicineById(ctx, medicineId)
+
+  if (!existingMedicine) {
+    throw new Error("药品记录不存在或不属于当前用户。")
   }
 
   const medicine = await prisma.medicine.delete({
@@ -556,15 +719,18 @@ export async function deleteMedicine(medicineId: string) {
   return mapMedicine(medicine)
 }
 
-export async function createAllergyRecord(input: CreateAllergyRecordInput) {
+export async function createAllergyRecord(ctx: RepositoryContext, input: CreateAllergyRecordInput) {
   const prisma = getPrismaClient()
 
   if (!prisma) {
     throw new Error("当前还没有配置 DATABASE_URL，暂时无法写入真实数据库。")
   }
 
+  await assertDatabaseMemberBelongsToUser(ctx, input.memberId)
+
   const record = await prisma.allergyRecord.create({
     data: {
+      userId: ctx.userId,
       memberId: input.memberId,
       allergen: input.allergen,
       reaction: input.reaction,

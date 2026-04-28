@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { LoaderCircleIcon, SparklesIcon, UploadIcon } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -25,7 +25,8 @@ type ExtractResult = {
   specification: string
   instructions: string
   purpose: string
-  aiSummary: string
+  summary: string
+  originalText: string
   warnings: string[]
 }
 
@@ -80,8 +81,10 @@ export function MedicineEntryDialog({
   dialogDescription?: string
   submitLabel?: string
   initialValues?: Record<string, string>
-}>) {
+  }>) {
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const initialValues = useMemo(
     () =>
       Object.fromEntries(
@@ -100,6 +103,7 @@ export function MedicineEntryDialog({
   const [errorMessage, setErrorMessage] = useState("")
   const [successMessage, setSuccessMessage] = useState("")
   const [aiSummary, setAiSummary] = useState("")
+  const [originalText, setOriginalText] = useState("")
   const [warnings, setWarnings] = useState<string[]>([])
   const imageInputRef = useRef<HTMLInputElement>(null)
 
@@ -113,6 +117,7 @@ export function MedicineEntryDialog({
     setErrorMessage("")
     setSuccessMessage("")
     setAiSummary("")
+    setOriginalText("")
     setWarnings([])
   }
 
@@ -194,7 +199,8 @@ export function MedicineEntryDialog({
         instructions: result.data?.instructions ?? current.instructions,
         purpose: result.data?.purpose ?? current.purpose,
       }))
-      setAiSummary(result.data.aiSummary)
+      setAiSummary(result.data.summary)
+      setOriginalText(result.data.originalText)
       setWarnings(result.data.warnings)
       setSuccessMessage(result.message ?? "图片识别完成，已回填到表单。")
     } catch (error) {
@@ -254,7 +260,17 @@ export function MedicineEntryDialog({
       setSuccessMessage(result.message ?? "药品记录已写入数据库。")
       setOpen(false)
       resetDialog()
-      router.refresh()
+
+      if (medicineId) {
+        router.refresh()
+        return
+      }
+
+      const nextSearchParams = new URLSearchParams(searchParams.toString())
+      nextSearchParams.delete("q")
+      nextSearchParams.delete("member")
+      nextSearchParams.set("page", "1")
+      router.replace(`${pathname}?${nextSearchParams.toString()}`)
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "保存药品失败。")
     } finally {
@@ -286,7 +302,7 @@ export function MedicineEntryDialog({
               <div>
                 <p className="text-sm font-medium text-slate-900">药品图片识别</p>
                 <p className="mt-1 text-sm text-slate-500">
-                  支持上传药盒、标签或说明书图片，AI 会回填分类、规格、使用说明和适应症。
+                  支持上传药盒、标签或说明书图片，AI 会尽量整理出规格、用法用量、治疗范围和注意事项。
                 </p>
               </div>
               <Button disabled={!imageFile || isExtracting} onClick={handleExtract} type="button">
@@ -315,7 +331,7 @@ export function MedicineEntryDialog({
                   >
                     <img
                       alt={imageName || "药品图片预览"}
-                      className="h-56 w-full object-contain bg-white transition duration-200 group-hover:scale-[1.01]"
+                      className="h-56 w-full object-cover object-center bg-white transition duration-200 group-hover:scale-[1.01]"
                       src={imagePreviewUrl}
                     />
                     <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/70 via-slate-950/35 to-transparent px-4 py-3">
@@ -348,21 +364,32 @@ export function MedicineEntryDialog({
               </p>
             </div>
 
-            {aiSummary ? (
-              <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 p-4 text-sm leading-6 text-slate-700">
-                <p className="font-medium text-emerald-700">AI 摘要</p>
-                <p className="mt-2">{aiSummary}</p>
-              </div>
-            ) : null}
+            {aiSummary || originalText || warnings.length > 0 ? (
+              <div className="grid gap-3">
+                {aiSummary ? (
+                  <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 p-4 text-sm leading-6 text-slate-700">
+                    <p className="font-medium text-emerald-700">AI 总结</p>
+                    <p className="mt-2 whitespace-pre-line">{aiSummary}</p>
+                  </div>
+                ) : null}
 
-            {warnings.length > 0 ? (
-              <div className="rounded-xl border border-amber-100 bg-amber-50/70 p-4 text-sm leading-6 text-amber-800">
-                <p className="font-medium">识别提醒</p>
-                <ul className="mt-2 grid gap-1">
-                  {warnings.map((warning) => (
-                    <li key={warning}>- {warning}</li>
-                  ))}
-                </ul>
+                {originalText ? (
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm leading-6 text-slate-700">
+                    <p className="font-medium text-slate-900">识别原文</p>
+                    <p className="mt-2 whitespace-pre-wrap text-slate-600">{originalText}</p>
+                  </div>
+                ) : null}
+
+                {warnings.length > 0 ? (
+                  <div className="rounded-xl border border-amber-100 bg-amber-50/70 p-4 text-sm leading-6 text-amber-800">
+                    <p className="font-medium">识别提醒</p>
+                    <ul className="mt-2 grid gap-1">
+                      {warnings.map((warning) => (
+                        <li key={warning}>- {warning}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </section>

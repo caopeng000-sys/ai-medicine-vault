@@ -1,18 +1,23 @@
 import { NextResponse } from "next/server"
 
+import type { RepositoryContext } from "@/features/medicine-vault/auth-context"
+import { requireCurrentUser } from "@/features/medicine-vault/auth-context"
 import { resolveAssistantQuery, type AssistantQueryResponse } from "@/features/medicine-vault/assistant-service"
 
 type AssistantQueryHandler = (request: Request) => Promise<Response>
+type ResolveAssistantQuery = (ctx: RepositoryContext, question: string) => Promise<AssistantQueryResponse>
 
 type AssistantQueryRequestBody = Readonly<{
   question?: string
 }>
 
 export function createAssistantQueryHandler(
-  resolveQuery = resolveAssistantQuery,
+  resolveQuery: ResolveAssistantQuery = resolveAssistantQuery,
+  getContext = requireCurrentUser,
 ): AssistantQueryHandler {
   return async (request) => {
     try {
+      const ctx = await getContext()
       const body = (await request.json()) as AssistantQueryRequestBody
       const question = body.question?.trim()
 
@@ -28,7 +33,7 @@ export function createAssistantQueryHandler(
         )
       }
 
-      const result = await resolveQuery(question)
+      const result = await resolveQuery(ctx, question)
 
       return NextResponse.json(result)
     } catch (error) {

@@ -19,6 +19,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { requireCurrentUser } from "@/features/medicine-vault/auth-context"
 import {
   getMemberById,
   listAllergyRecords,
@@ -27,13 +28,16 @@ import {
   listVisitPreparations,
 } from "@/features/medicine-vault/repository"
 
+export const dynamic = "force-dynamic"
+
 export default async function MemberDetailPage({
   params,
 }: Readonly<{
   params: Promise<{ memberId: string }>
 }>) {
   const { memberId } = await params
-  const member = await getMemberById(memberId)
+  const ctx = await requireCurrentUser()
+  const member = await getMemberById(ctx, memberId)
 
   if (!member) {
     return (
@@ -47,10 +51,10 @@ export default async function MemberDetailPage({
   }
 
   const [records, medicines, allergies, preparations] = await Promise.all([
-    listMedicalRecords(memberId),
-    listMedicines(memberId),
-    listAllergyRecords(memberId),
-    listVisitPreparations(memberId),
+    listMedicalRecords(ctx, memberId),
+    listMedicines(ctx, memberId),
+    listAllergyRecords(ctx, memberId),
+    listVisitPreparations(ctx, memberId),
   ])
   const preparation = preparations[0]
 

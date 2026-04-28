@@ -1,5 +1,6 @@
 export type Member = {
   id: string
+  userId: string
   name: string
   relationship: string
   birthYear: number
@@ -10,6 +11,7 @@ export type Member = {
 
 export type MedicalRecord = {
   id: string
+  userId: string
   memberId: string
   visitedAt: string
   hospitalName: string
@@ -23,6 +25,7 @@ export type MedicalRecord = {
 
 export type Medicine = {
   id: string
+  userId: string
   memberId: string
   name: string
   category: string
@@ -41,6 +44,7 @@ export type Medicine = {
 
 export type AllergyRecord = {
   id: string
+  userId: string
   memberId: string
   allergen: string
   reaction: string
@@ -50,15 +54,19 @@ export type AllergyRecord = {
 }
 
 export type VisitPreparation = {
+  userId: string
   memberId: string
   concern: string
   summary: string
   questions: string[]
 }
 
+export const DEVELOPMENT_USER_ID = "user-development"
+
 export const members: Member[] = [
   {
     id: "member-cp",
+    userId: DEVELOPMENT_USER_ID,
     name: "曹鹏",
     relationship: "本人",
     birthYear: 1994,
@@ -68,6 +76,7 @@ export const members: Member[] = [
   },
   {
     id: "member-mom",
+    userId: DEVELOPMENT_USER_ID,
     name: "妈妈",
     relationship: "母亲",
     birthYear: 1968,
@@ -77,6 +86,7 @@ export const members: Member[] = [
   },
   {
     id: "member-child",
+    userId: DEVELOPMENT_USER_ID,
     name: "小朋友",
     relationship: "家庭成员",
     birthYear: 2018,
@@ -89,6 +99,7 @@ export const members: Member[] = [
 export const medicalRecords: MedicalRecord[] = [
   {
     id: "record-20260412",
+    userId: DEVELOPMENT_USER_ID,
     memberId: "member-cp",
     visitedAt: "2026-04-12",
     hospitalName: "社区门诊",
@@ -101,6 +112,7 @@ export const medicalRecords: MedicalRecord[] = [
   },
   {
     id: "record-20260308",
+    userId: DEVELOPMENT_USER_ID,
     memberId: "member-cp",
     visitedAt: "2026-03-08",
     hospitalName: "市立医院",
@@ -113,6 +125,7 @@ export const medicalRecords: MedicalRecord[] = [
   },
   {
     id: "record-20260215",
+    userId: DEVELOPMENT_USER_ID,
     memberId: "member-mom",
     visitedAt: "2026-02-15",
     hospitalName: "区中心医院",
@@ -125,6 +138,7 @@ export const medicalRecords: MedicalRecord[] = [
   },
   {
     id: "record-20260122",
+    userId: DEVELOPMENT_USER_ID,
     memberId: "member-child",
     visitedAt: "2026-01-22",
     hospitalName: "儿童医院",
@@ -140,6 +154,7 @@ export const medicalRecords: MedicalRecord[] = [
 export const medicines: Medicine[] = [
   {
     id: "medicine-ibuprofen",
+    userId: DEVELOPMENT_USER_ID,
     memberId: "member-cp",
     name: "布洛芬缓释胶囊",
     category: "止痛退烧",
@@ -155,6 +170,7 @@ export const medicines: Medicine[] = [
   },
   {
     id: "medicine-loratadine",
+    userId: DEVELOPMENT_USER_ID,
     memberId: "member-cp",
     name: "氯雷他定片",
     category: "抗过敏",
@@ -170,6 +186,7 @@ export const medicines: Medicine[] = [
   },
   {
     id: "medicine-ors",
+    userId: DEVELOPMENT_USER_ID,
     memberId: "member-child",
     name: "口服补液盐",
     category: "补液",
@@ -185,6 +202,7 @@ export const medicines: Medicine[] = [
   },
   {
     id: "medicine-thermometer-strip",
+    userId: DEVELOPMENT_USER_ID,
     memberId: "member-mom",
     name: "电子血压计电池",
     category: "设备耗材",
@@ -200,6 +218,7 @@ export const medicines: Medicine[] = [
   },
   {
     id: "medicine-vitamin-c",
+    userId: DEVELOPMENT_USER_ID,
     memberId: "member-cp",
     name: "维生素 C 片",
     category: "营养补充",
@@ -215,6 +234,7 @@ export const medicines: Medicine[] = [
   },
   {
     id: "medicine-cold-granule",
+    userId: DEVELOPMENT_USER_ID,
     memberId: "member-mom",
     name: "感冒灵颗粒",
     category: "感冒对症",
@@ -230,6 +250,7 @@ export const medicines: Medicine[] = [
   },
   {
     id: "medicine-amoxicillin",
+    userId: DEVELOPMENT_USER_ID,
     memberId: "member-mom",
     name: "阿莫西林胶囊",
     category: "抗感染",
@@ -245,6 +266,7 @@ export const medicines: Medicine[] = [
   },
   {
     id: "medicine-cefixime",
+    userId: DEVELOPMENT_USER_ID,
     memberId: "member-child",
     name: "头孢克肟片",
     category: "抗感染",
@@ -260,6 +282,7 @@ export const medicines: Medicine[] = [
   },
   {
     id: "medicine-levocetirizine",
+    userId: DEVELOPMENT_USER_ID,
     memberId: "member-cp",
     name: "左西替利嗪片",
     category: "抗过敏",
@@ -275,6 +298,7 @@ export const medicines: Medicine[] = [
   },
   {
     id: "medicine-cough-syrup",
+    userId: DEVELOPMENT_USER_ID,
     memberId: "member-child",
     name: "双黄连口服液",
     category: "咽喉舒缓",
@@ -293,6 +317,7 @@ export const medicines: Medicine[] = [
 export const allergyRecords: AllergyRecord[] = [
   {
     id: "allergy-penicillin",
+    userId: DEVELOPMENT_USER_ID,
     memberId: "member-cp",
     allergen: "青霉素",
     reaction: "既往使用后出现皮疹，具体药品和剂量待补充。",
@@ -302,6 +327,7 @@ export const allergyRecords: AllergyRecord[] = [
   },
   {
     id: "allergy-seafood",
+    userId: DEVELOPMENT_USER_ID,
     memberId: "member-child",
     allergen: "海鲜",
     reaction: "进食后出现皮疹和瘙痒。",
@@ -313,6 +339,7 @@ export const allergyRecords: AllergyRecord[] = [
 
 export const visitPreparations: VisitPreparation[] = [
   {
+    userId: DEVELOPMENT_USER_ID,
     memberId: "member-cp",
     concern: "咳嗽低烧复诊前准备",
     summary: "近期有上呼吸道感染记录，也有过敏性鼻炎史。就医时需要说明低烧、咳嗽持续时间、已使用药品和青霉素疑似过敏史。",
@@ -347,7 +374,7 @@ export function getVisitPreparationForMember(memberId: string) {
   return visitPreparations.find((item) => item.memberId === memberId)
 }
 
-function parseMedicineQuantity(quantity: string) {
+export function parseMedicineQuantity(quantity: string) {
   const match = quantity.trim().match(/^(\d+)/)
 
   if (!match) {

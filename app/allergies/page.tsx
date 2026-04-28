@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { requireCurrentUser } from "@/features/medicine-vault/auth-context"
 import { getMemberById, listAllergyRecords, listMembers } from "@/features/medicine-vault/repository"
 
 const severityVariant = {
@@ -25,16 +26,19 @@ const severityVariant = {
 
 const filterButtons = ["全部风险等级", "全部过敏原", "发现时间"]
 
+export const dynamic = "force-dynamic"
+
 export default async function AllergiesPage({
   searchParams,
 }: Readonly<{
   searchParams: Promise<{ member?: string }>
 }>) {
   const { member } = await searchParams
+  const ctx = await requireCurrentUser()
   const [members, visibleAllergies, currentMember] = await Promise.all([
-    listMembers(),
-    listAllergyRecords(member),
-    member ? getMemberById(member) : Promise.resolve(undefined),
+    listMembers(ctx),
+    listAllergyRecords(ctx, member),
+    member ? getMemberById(ctx, member) : Promise.resolve(undefined),
   ])
 
   const severeCount = visibleAllergies.filter((item) => item.severity === "严重").length

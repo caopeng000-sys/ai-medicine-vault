@@ -17,9 +17,12 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { requireCurrentUser } from "@/features/medicine-vault/auth-context"
 import { getMemberById, listMedicalRecords, listMembers } from "@/features/medicine-vault/repository"
 
 const filterButtons = ["全部时间", "全部科室", "全部诊断"]
+
+export const dynamic = "force-dynamic"
 
 export default async function RecordsPage({
   searchParams,
@@ -27,10 +30,11 @@ export default async function RecordsPage({
   searchParams: Promise<{ member?: string }>
 }>) {
   const { member } = await searchParams
+  const ctx = await requireCurrentUser()
   const [members, records, currentMember] = await Promise.all([
-    listMembers(),
-    listMedicalRecords(member),
-    member ? getMemberById(member) : Promise.resolve(undefined),
+    listMembers(ctx),
+    listMedicalRecords(ctx, member),
+    member ? getMemberById(ctx, member) : Promise.resolve(undefined),
   ])
 
   const departments = new Set(records.map((record) => record.department)).size

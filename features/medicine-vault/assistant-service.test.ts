@@ -2,11 +2,14 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
 import { medicalRecords, medicines, members } from "./data"
+import { DEFAULT_DEVELOPMENT_USER, type RepositoryContext } from "./auth-context"
 import { resolveAssistantQuery } from "./assistant-service"
 
 describe("assistant service", () => {
+  const ctx: RepositoryContext = { userId: DEFAULT_DEVELOPMENT_USER.id }
+
   it("returns a source-backed answer for a cold question", async () => {
-    const result = await resolveAssistantQuery("我上次什么时候感冒", {
+    const result = await resolveAssistantQuery(ctx, "我上次什么时候感冒", {
       classifyQuestion: async () => ({
         intent: "recent_cold_record",
         reason: "命中感冒问题",
@@ -28,7 +31,7 @@ describe("assistant service", () => {
     let askedRecords = false
     let askedMedicines = false
 
-    const result = await resolveAssistantQuery("我今天心情怎么样", {
+    const result = await resolveAssistantQuery(ctx, "我今天心情怎么样", {
       classifyQuestion: async () => ({
         intent: "unsupported",
         reason: "不属于已支持意图",
@@ -58,7 +61,7 @@ describe("assistant service", () => {
   })
 
   it("routes cough medicine questions to the medicine query flow", async () => {
-    const result = await resolveAssistantQuery("家里有哪些抗咳嗽药？", {
+    const result = await resolveAssistantQuery(ctx, "家里有哪些抗咳嗽药？", {
       classifyQuestion: async () => ({
         intent: "medicine_query",
         reason: "药品类问题应进入药品查询",
@@ -77,5 +80,34 @@ describe("assistant service", () => {
     assert.equal(result.intent, "medicine_query")
     assert.equal(result.answer, "medicine_query:1")
     assert.equal(result.sources[0]?.label, "药品 · 双黄连口服液")
+  })
+
+  it("passes repository context into default data dependencies", async () => {
+    const seen: string[] = []
+
+    const result = await resolveAssistantQuery(ctx, "家里有哪些抗过敏药？", {
+      classifyQuestion: async () => ({
+        intent: "medicine_query",
+        reason: "药品类问题",
+      }),
+      selectMedicines: async (_question, availableMedicines) => ({
+        selectedIds: [availableMedicines[0]?.id ?? ""].filter(Boolean),
+        summary: "找到药品。",
+        reason: "测试上下文传递",
+      }),
+      summarizeAnswer: async ({ sources }) => `sources:${sources.length}`,
+      listMembers: async (receivedCtx) => {
+        seen.push(receivedCtx.userId)
+        return members
+      },
+      listMedicalRecords: async () => medicalRecords,
+      listMedicines: async (receivedCtx) => {
+        seen.push(receivedCtx.userId)
+        return medicines
+      },
+    })
+
+    assert.equal(result.answer, "sources:1")
+    assert.deepEqual(seen, [ctx.userId, ctx.userId])
   })
 })
