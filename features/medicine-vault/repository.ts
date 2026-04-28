@@ -46,6 +46,16 @@ export type PaginatedMedicines = Readonly<{
   totalPages: number
 }>
 
+export type AiCallLogInput = Readonly<{
+  routeKey: string
+  provider: string
+  model: string
+  status: "success" | "error" | "fallback" | "rate_limited"
+  inputBytes?: number
+  outputBytes?: number
+  errorMessage?: string
+}>
+
 export { DEFAULT_MEDICINE_PAGE_SIZE } from "@/features/medicine-vault/medicine-pagination"
 
 function toDateOnly(value: string) {
@@ -507,6 +517,29 @@ export async function listVisitPreparations(ctx: RepositoryContext, memberId?: s
     return mockVisitPreparations
       .filter((item) => item.userId === ctx.userId)
       .filter((item) => (memberId ? item.memberId === memberId : true))
+  }
+}
+
+export async function logAiCall(ctx: RepositoryContext, input: AiCallLogInput) {
+  const prisma = getPrismaClient()
+
+  if (!prisma) return
+
+  try {
+    await prisma.aiCallLog.create({
+      data: {
+        userId: ctx.userId,
+        routeKey: input.routeKey,
+        provider: input.provider,
+        model: input.model,
+        status: input.status,
+        inputBytes: input.inputBytes ?? 0,
+        outputBytes: input.outputBytes ?? 0,
+        errorMessage: input.errorMessage?.slice(0, 500),
+      },
+    })
+  } catch {
+    // AI call logging is best effort and must never block the user workflow.
   }
 }
 

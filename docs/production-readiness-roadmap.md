@@ -53,7 +53,7 @@ P2 可以作为产品成熟度提升项，不阻塞第一版上线。
 
 **当前进展**
 
-已完成第一阶段数据隔离骨架：新增 `User` 模型、业务表 `userId`、`RepositoryContext`、页面/API 当前用户上下文和 owner-scoped repository 查询。当前仍使用开发环境固定用户，生产上线前必须接入真实 Auth.js session。
+已完成第一阶段数据隔离骨架，并已接入 Auth.js v5 登录骨架：新增 `User` 模型、业务表 `userId`、`RepositoryContext`、页面/API 当前用户上下文、owner-scoped repository 查询、Auth.js Adapter 表、生产环境访问保护和 `/login` 入口。开发环境仍保留固定用户 fallback，生产环境必须配置真实 OAuth provider。
 
 **当前问题**
 
@@ -61,12 +61,12 @@ P2 可以作为产品成熟度提升项，不阻塞第一版上线。
 
 **开发任务**
 
-- 接入认证方案，例如 NextAuth/Auth.js、Clerk 或自建邮箱登录
-- 新增 `User` 数据模型
-- 将 `Member`、`MedicalRecord`、`Medicine`、`AllergyRecord` 等业务数据关联到用户
-- 所有列表、详情、创建、编辑、删除接口都必须按当前用户过滤
-- 未登录访问业务页面时跳转登录页
-- API 层统一校验用户身份
+- 已接入 Auth.js v5 + Prisma Adapter
+- 已新增 `User`、`Account`、`Session`、`VerificationToken` 数据模型
+- 已将 `Member`、`MedicalRecord`、`Medicine`、`AllergyRecord` 等业务数据关联到用户
+- 已让列表、详情、创建、编辑、删除接口按当前用户过滤
+- 已通过生产环境 `proxy.ts` 对业务页面/API 做未登录保护
+- 待上线前配置 `AUTH_SECRET`、`AUTH_GITHUB_ID` 和 `AUTH_GITHUB_SECRET`
 
 **验收标准**
 
@@ -161,16 +161,16 @@ P2 可以作为产品成熟度提升项，不阻塞第一版上线。
 
 **当前问题**
 
-当前已经接入阿里百炼，但还需要限流、调用记录和更清晰的错误兜底。
+当前已经接入阿里百炼，并已增加第一版内存限流、`AiCallLog` 调用记录和错误兜底。多实例生产环境仍需替换为 Redis/KV 限流。
 
 **开发任务**
 
-- 为 `/api/assistant/query` 和药品图片识别接口增加频率限制
-- 记录 AI 调用日志：用户、意图、耗时、成功/失败、模型名称
-- 限制单次输入长度和图片大小
-- 对不支持的问题返回固定兜底提示
-- AI 回答必须基于查询结果，不允许自由医疗建议
-- 增加 AI 调用失败时的非 AI 兜底结果
+- 已为 `/api/assistant/query` 和药品图片识别接口增加内存频率限制
+- 已记录 AI 调用日志：用户、路由、成功/失败、模型名称、输入/输出大小
+- 已限制单次输入长度和图片大小
+- 已对不支持的问题返回固定兜底提示
+- 已强调 AI 仅做资料整理，不替代医生或药师
+- 待生产环境替换为共享存储限流并接入监控告警
 
 **验收标准**
 

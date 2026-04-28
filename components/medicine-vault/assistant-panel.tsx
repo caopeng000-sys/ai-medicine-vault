@@ -93,7 +93,7 @@ export function AssistantPanel() {
                 </Badge>
               </div>
               <p className="max-w-3xl text-sm leading-6 text-slate-500">
-                先识别你在问什么，再去查病历或药品库，最后返回带来源依据的答案。现在支持感冒记录和药品查询两类问题。
+                先识别你在问什么，再去查病历或药品库，最后返回带来源依据的答案。AI 只做资料整理，不替代医生或药师。
               </p>
             </div>
 

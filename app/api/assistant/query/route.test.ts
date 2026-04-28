@@ -63,4 +63,58 @@ describe("assistant query route", () => {
     assert.equal(response.status, 200)
     assert.equal(payload.answer, "user-current:家里有哪些抗过敏药")
   })
+
+  it("rejects overlong questions before calling the assistant service", async () => {
+    let called = false
+    const handler = createAssistantQueryHandler(
+      async () => {
+        called = true
+        return {
+          intent: "medicine_query",
+          answer: "不应调用",
+          sources: [],
+        }
+      },
+      async () => ({ userId: DEFAULT_DEVELOPMENT_USER.id }),
+    )
+
+    const response = await handler(
+      new Request("http://localhost/api/assistant/query", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ question: "药".repeat(1201) }),
+      }),
+    )
+    const payload = (await response.json()) as { message: string }
+
+    assert.equal(response.status, 400)
+    assert.equal(called, false)
+    assert.match(payload.message, /1200/)
+  })
+
+  it("returns a friendly fallback without leaking internal AI errors", async () => {
+    const handler = createAssistantQueryHandler(
+      async () => {
+        throw new Error("DASHSCOPE_API_KEY=secret stack trace")
+      },
+      async () => ({ userId: DEFAULT_DEVELOPMENT_USER.id }),
+    )
+
+    const response = await handler(
+      new Request("http://localhost/api/assistant/query", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ question: "家里有哪些抗过敏药" }),
+      }),
+    )
+    const payload = (await response.json()) as { message: string }
+
+    assert.equal(response.status, 502)
+    assert.match(payload.message, /暂时不可用/)
+    assert.doesNotMatch(payload.message, /DASHSCOPE_API_KEY/)
+  })
 })
