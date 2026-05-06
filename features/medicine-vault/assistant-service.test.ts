@@ -57,7 +57,7 @@ describe("assistant service", () => {
     assert.equal(result.answer, "")
     assert.equal(
       result.message,
-      "这类问题我现在还不支持。你可以问我上次什么时候感冒、我之前对哪些药有过不适、布洛芬怎么吃、家里有哪些抗过敏药、两种药能不能一起吃，或者下次看医生前要准备什么。",
+      "这类问题我现在还不支持。你可以问我上次什么时候感冒、我之前对哪些药有过不适、布洛芬怎么吃、家里有哪些抗过敏药、两种药能不能一起吃、过期药怎么处理，或者下次看医生前要准备什么。",
     )
     assert.equal(askedMembers, false)
     assert.equal(askedRecords, false)
@@ -133,6 +133,39 @@ describe("assistant service", () => {
     assert.equal(result.answer, "medicine_interaction:药品 · 布洛芬缓释胶囊|药品 · 感冒灵颗粒")
     assert.equal(result.sources[0]?.label, "药品 · 布洛芬缓释胶囊")
     assert.equal(result.sources[1]?.label, "药品 · 感冒灵颗粒")
+  })
+
+  it("routes medicine disposal questions to the disposal flow", async () => {
+    const result = await resolveAssistantQuery(ctx, "过期药怎么办？", {
+      classifyQuestion: async () => ({
+        intent: "medicine_disposal",
+        reason: "过期药问题应进入处理查询",
+      }),
+      selectMedicines: async () => ({ selectedIds: [], summary: "", reason: "" }),
+      summarizeAnswer: async ({ intent, sources }) => `${intent}:${sources.map((source) => source.label).join("|")}`,
+      listMembers: async () => members,
+      listAllergyRecords: async () => [],
+      listMedicalRecords: async () => medicalRecords,
+      listMedicines: async () => [
+        {
+          ...medicines[4],
+          id: "medicine-expired-vitamin-c",
+          name: "维生素 C 片",
+          expiresAt: "2025-12-10",
+        },
+        {
+          ...medicines[1],
+          id: "medicine-fresh-loratadine",
+          name: "氯雷他定片",
+          expiresAt: "2027-02-28",
+        },
+      ],
+    })
+
+    assert.equal(result.intent, "medicine_disposal")
+    assert.equal(result.answer, "medicine_disposal:过期药处理 · 曹鹏 · 维生素 C 片")
+    assert.equal(result.sources[0]?.label, "过期药处理 · 曹鹏 · 维生素 C 片")
+    assert.equal(result.sources[0]?.memberId, "member-cp")
   })
 
   it("routes cough medicine questions to the medicine query flow", async () => {

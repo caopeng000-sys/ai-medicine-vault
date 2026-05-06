@@ -253,4 +253,39 @@ describe("assistant query route", () => {
     assert.equal(payload.sources[0]?.label, "药品 · 布洛芬缓释胶囊")
     assert.equal(payload.sources[1]?.label, "药品 · 感冒灵颗粒")
   })
+
+  it("returns medicine disposal answers unchanged", async () => {
+    const handler = createAssistantQueryHandler(
+      async () => ({
+        intent: "medicine_disposal",
+        answer: "过期药不要继续吃，建议按说明书或当地回收要求处理。",
+        sources: [
+          { label: "过期药处理 · 曹鹏 · 维生素 C 片", detail: "营养补充 / 已过期 120 天 · 厨房收纳柜 · 不作为治疗替代，仅作日常补充。 · 若同时服用其他补充剂，需要注意重复摄入。 · 2025-12-10 · 1 瓶", memberId: "member-cp" },
+        ],
+      }),
+      async () => ({ userId: DEFAULT_DEVELOPMENT_USER.id }),
+    )
+
+    const response = await handler(
+      new Request("http://localhost/api/assistant/query", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ question: "过期药怎么办？" }),
+      }),
+    )
+
+    const payload = (await response.json()) as {
+      intent: string
+      answer: string
+      sources: Array<{ label: string; detail: string; memberId: string }>
+    }
+
+    assert.equal(response.status, 200)
+    assert.equal(payload.intent, "medicine_disposal")
+    assert.equal(payload.answer, "过期药不要继续吃，建议按说明书或当地回收要求处理。")
+    assert.equal(payload.sources[0]?.label, "过期药处理 · 曹鹏 · 维生素 C 片")
+    assert.equal(payload.sources[0]?.memberId, "member-cp")
+  })
 })

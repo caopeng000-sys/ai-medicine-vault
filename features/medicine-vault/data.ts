@@ -19,6 +19,8 @@ export type MedicalRecord = {
   symptoms: string
   diagnosis: string
   examinationResults?: string
+  clinicalSummary?: string
+  followUpAt?: string
   doctorAdvice: string
   prescriptionNote: string
   note: string
@@ -107,7 +109,9 @@ export const medicalRecords: MedicalRecord[] = [
     department: "全科",
     symptoms: "低烧、咳嗽、咽喉不适，夜间加重。",
     diagnosis: "上呼吸道感染倾向。",
+    clinicalSummary: "急性上呼吸道感染，对症处理为主。",
     examinationResults: "体温 38.1℃，咽部充血，肺部听诊未见明显异常。",
+    followUpAt: "2026-04-15",
     doctorAdvice: "多饮水，观察体温变化，若高热或喘憋及时复诊。",
     prescriptionNote: "对症处理，避免自行叠加退烧药。",
     note: "就医前已服用一次布洛芬，需要下次复诊时说明。",
@@ -121,7 +125,9 @@ export const medicalRecords: MedicalRecord[] = [
     department: "耳鼻喉科",
     symptoms: "鼻塞、打喷嚏、流清涕，换季明显。",
     diagnosis: "过敏性鼻炎。",
+    clinicalSummary: "过敏性鼻炎复发，继续留意过敏原和鼻喷剂使用情况。",
     examinationResults: "鼻腔黏膜充血，打喷嚏时症状明显。",
+    followUpAt: "2026-03-22",
     doctorAdvice: "减少过敏原暴露，规律使用鼻喷剂，必要时复查。",
     prescriptionNote: "氯雷他定按需使用，鼻喷剂按医嘱使用。",
     note: "春季复发明显，可作为后续 AI 问答的重要上下文。",
@@ -135,7 +141,9 @@ export const medicalRecords: MedicalRecord[] = [
     department: "心内科",
     symptoms: "偶发头晕，晨起血压偏高。",
     diagnosis: "血压波动，需要家庭监测。",
+    clinicalSummary: "建议持续记录晨晚血压，观察波动趋势。",
     examinationResults: "晨起血压偏高，建议继续记录晨晚血压变化。",
+    followUpAt: "2026-02-28",
     doctorAdvice: "记录晨晚血压，低盐饮食，按时复诊。",
     prescriptionNote: "药物调整需由医生确认。",
     note: "后续需要增加血压记录模块，目前先作为病历备注保留。",
@@ -149,7 +157,9 @@ export const medicalRecords: MedicalRecord[] = [
     department: "儿科",
     symptoms: "皮疹、瘙痒，进食海鲜后出现。",
     diagnosis: "疑似食物过敏。",
+    clinicalSummary: "先回避可疑食物，观察皮疹与瘙痒变化。",
     examinationResults: "皮疹分布于躯干和四肢，建议进一步观察并记录诱因。",
+    followUpAt: "2026-01-29",
     doctorAdvice: "避免再次接触可疑食物，必要时做过敏原检查。",
     prescriptionNote: "儿童用药剂量必须由医生或药师确认。",
     note: "家庭成员查看时需要突出显示。",

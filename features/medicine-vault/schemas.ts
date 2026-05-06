@@ -23,7 +23,9 @@ export const createMedicalRecordSchema = z.object({
   visitedAt: z.string().trim().min(1, "请填写就诊日期。"),
   hospital: z.string().trim().min(1, "请填写医院与科室。"),
   diagnosis: z.string().trim().min(1, "请填写诊断结论。"),
+  clinicalSummary: z.string().trim().default(""),
   examinationResults: z.string().trim().default(""),
+  followUpAt: z.string().trim().default(""),
   symptoms: z.string().trim().min(1, "请填写症状描述。"),
   advice: z.string().trim().min(1, "请填写医生建议。"),
 })

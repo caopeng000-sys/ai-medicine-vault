@@ -184,18 +184,27 @@ export default async function MemberDetailPage({
           </CardHeader>
           <CardContent className="grid gap-3">
             {records.map((record) => (
-                <div className="rounded-lg border bg-background p-4" key={record.id}>
+              <div className="rounded-lg border bg-background p-4" key={record.id}>
                   <div className="flex flex-wrap items-center gap-2 text-sm">
                     <Badge variant="secondary">{record.visitedAt}</Badge>
                     <span className="text-muted-foreground">
                       {record.hospitalName} / {record.department}
-                  </span>
-                </div>
+                    </span>
+                    <Badge variant="outline">{record.followUpAt || "暂无复诊时间"}</Badge>
+                  </div>
                 <p className="mt-3 font-medium">{record.diagnosis}</p>
                 <p className="mt-1 text-sm leading-6 text-muted-foreground">{record.symptoms}</p>
                 <div className="mt-3 rounded-lg border bg-background p-3 text-sm leading-6">
+                  <p className="font-medium">诊疗摘要</p>
+                  <p className="mt-2 text-muted-foreground">{record.clinicalSummary || "暂无诊疗摘要。"}</p>
+                </div>
+                <div className="mt-3 rounded-lg border bg-background p-3 text-sm leading-6">
                   <p className="font-medium">检查/检验结果</p>
                   <p className="mt-2 text-muted-foreground">{record.examinationResults || "暂无检查/检验结果。"}</p>
+                </div>
+                <div className="mt-3 rounded-lg border bg-background p-3 text-sm leading-6">
+                  <p className="font-medium">复诊时间</p>
+                  <p className="mt-2 text-muted-foreground">{record.followUpAt || "暂无复诊时间。"}</p>
                 </div>
               </div>
             ))}

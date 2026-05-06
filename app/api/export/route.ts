@@ -77,7 +77,23 @@ function buildCsvExport(input: {
   allergyRecords: AllergyRecord[]
 }) {
   const rows = [
-    toCsvRow(["section", "id", "userId", "name", "relationship", "memberId", "date", "category", "value1", "value2", "value3", "note"]),
+    toCsvRow([
+      "section",
+      "id",
+      "userId",
+      "name",
+      "relationship",
+      "memberId",
+      "date",
+      "category",
+      "value1",
+      "value2",
+      "value3",
+      "value4",
+      "value5",
+      "value6",
+      "note",
+    ]),
     ...input.members.map((member) =>
       toCsvRow([
         "members",
@@ -89,6 +105,10 @@ function buildCsvExport(input: {
         member.birthYear,
         member.gender,
         member.allergySummary,
+        "",
+        "",
+        "",
+        "",
         "",
         "",
         member.note,
@@ -106,8 +126,10 @@ function buildCsvExport(input: {
         record.department,
         record.hospitalName,
         record.diagnosis,
-        record.examinationResults ?? "",
         record.symptoms,
+        record.clinicalSummary ?? "",
+        record.examinationResults ?? "",
+        record.followUpAt ?? "",
         record.note,
       ]),
     ),
@@ -125,6 +147,9 @@ function buildCsvExport(input: {
         medicine.specification,
         medicine.quantity,
         medicine.usageNote,
+        medicine.safetyNote,
+        "",
+        "",
       ]),
     ),
     ...input.allergyRecords.map((record) =>
@@ -140,10 +165,12 @@ function buildCsvExport(input: {
         record.reaction,
         "",
         "",
+        "",
+        "",
         record.note,
       ]),
     ),
-    toCsvRow(["exportedAt", input.exportedAt, "", "", "", "", "", "", "", "", "", ""]),
+    toCsvRow(["exportedAt", input.exportedAt, "", "", "", "", "", "", "", "", "", "", "", "", ""]),
   ]
 
   return `${rows.join("\n")}\n`

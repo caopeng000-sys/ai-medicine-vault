@@ -1,10 +1,12 @@
 import type { AllergyRecord, MedicalRecord, Medicine, Member, VisitPreparation } from "./data"
+import { getMedicineStatus } from "./data"
 
 export type AssistantIntent =
   | "recent_cold_record"
   | "allergy_history"
   | "medicine_usage"
   | "medicine_interaction"
+  | "medicine_disposal"
   | "medicine_query"
   | "visit_preparation"
   | "unsupported"
@@ -83,6 +85,21 @@ const MEDICINE_INTERACTION_KEYWORDS = [
   "能一起吃",
   "可不可以一起吃",
 ]
+const MEDICINE_DISPOSAL_KEYWORDS = [
+  "过期药",
+  "过期",
+  "到期",
+  "失效",
+  "怎么处理",
+  "如何处理",
+  "怎么丢",
+  "怎么扔",
+  "还能吃",
+  "还能不能吃",
+  "还能用吗",
+  "过期药怎么办",
+  "临期药",
+]
 const VISIT_PREPARATION_KEYWORDS = ["复诊", "就医准备", "就诊前", "就医前", "看医生前", "带什么", "准备什么", "检查前"]
 
 function joinMedicineText(medicine: Medicine) {
@@ -105,7 +122,9 @@ function joinRecordText(record: MedicalRecord) {
   return [
     record.symptoms,
     record.diagnosis,
+    record.clinicalSummary,
     record.examinationResults,
+    record.followUpAt,
     record.doctorAdvice,
     record.prescriptionNote,
     record.note,
@@ -136,6 +155,7 @@ export function parseAssistantIntent(rawText: string): AssistantIntentParseResul
         parsed.intent === "allergy_history" ||
         parsed.intent === "medicine_usage" ||
         parsed.intent === "medicine_interaction" ||
+        parsed.intent === "medicine_disposal" ||
         parsed.intent === "medicine_query" ||
         parsed.intent === "visit_preparation"
           ? parsed.intent
@@ -159,6 +179,10 @@ export function detectAssistantIntent(question: string): AssistantIntent {
 
   if (MEDICINE_INTERACTION_KEYWORDS.some((keyword) => normalized.includes(keyword))) {
     return "medicine_interaction"
+  }
+
+  if (MEDICINE_DISPOSAL_KEYWORDS.some((keyword) => normalized.includes(keyword))) {
+    return "medicine_disposal"
   }
 
   const coldQuestionKeywords = ["感冒", "发烧", "发热", "咳嗽", "鼻塞", "流涕", "上呼吸道感染"]
@@ -235,6 +259,13 @@ function stripMedicineUsageKeywords(question: string) {
 
 function stripMedicineInteractionKeywords(question: string) {
   return MEDICINE_INTERACTION_KEYWORDS.reduce((current, keyword) => current.replaceAll(keyword, " "), question.toLowerCase())
+    .replace(/[？?。！!、,，/·]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function stripMedicineDisposalKeywords(question: string) {
+  return MEDICINE_DISPOSAL_KEYWORDS.reduce((current, keyword) => current.replaceAll(keyword, " "), question.toLowerCase())
     .replace(/[？?。！!、,，/·]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
@@ -338,6 +369,68 @@ export function findMedicineInteractionGuidance(
       member: members.find((item) => item.id === medicine.memberId),
     }))
     .sort((left, right) => left.medicine.name.localeCompare(right.medicine.name, "zh-Hans-CN"))
+}
+
+export function findMedicineDisposalGuidance(
+  medicines: Medicine[],
+  members: Member[],
+  question: string,
+): AssistantMedicineUsageMatch[] {
+  const normalizedQuestion = question.trim().toLowerCase()
+  const strippedQuestion = stripMedicineDisposalKeywords(question)
+  const questionTerms = normalizeQuestionTerms(question)
+  const disposalHints = ["过期", "到期", "失效", "临期", "处理", "丢弃", "扔掉", "还能吃", "还能用"]
+
+  const matchedMedicines = medicines.filter((medicine) => {
+    const status = getMedicineStatus(medicine.expiresAt, medicine.quantity)
+    if (status.label !== "已过期" && status.label !== "即将过期") {
+      return false
+    }
+
+    if (medicine.category.includes("设备") || medicine.category.includes("耗材")) {
+      return false
+    }
+
+    const text = joinMedicineText(medicine)
+    const medicineFields = [
+      medicine.name,
+      medicine.category,
+      medicine.dosage,
+      medicine.instructions,
+      medicine.purpose,
+      medicine.specification,
+      medicine.usageNote,
+      medicine.safetyNote,
+    ]
+      .join(" ")
+      .toLowerCase()
+
+    const hasDirectMedicineName =
+      medicineFields.includes(normalizedQuestion) ||
+      normalizedQuestion.includes(medicine.name.toLowerCase()) ||
+      (strippedQuestion.length > 0 && medicineFields.includes(strippedQuestion)) ||
+      (strippedQuestion.length > 0 && medicine.name.toLowerCase().includes(strippedQuestion))
+    const hasQuestionTermMatch = questionTerms.some((term) => medicineFields.includes(term) || strippedQuestion.includes(term))
+    const hasDisposalHint = disposalHints.some((hint) => normalizedQuestion.includes(hint)) && text.includes(medicine.name.toLowerCase())
+
+    return hasDirectMedicineName || hasQuestionTermMatch || hasDisposalHint || disposalHints.some((hint) => normalizedQuestion.includes(hint))
+  })
+
+  return matchedMedicines
+    .map((medicine) => ({
+      medicine,
+      member: members.find((item) => item.id === medicine.memberId),
+    }))
+    .sort((left, right) => {
+      const leftStatus = getMedicineStatus(left.medicine.expiresAt, left.medicine.quantity)
+      const rightStatus = getMedicineStatus(right.medicine.expiresAt, right.medicine.quantity)
+
+      if (leftStatus.label !== rightStatus.label) {
+        return leftStatus.label === "已过期" ? -1 : 1
+      }
+
+      return left.medicine.expiresAt.localeCompare(right.medicine.expiresAt, "zh-Hans-CN")
+    })
 }
 
 export function findAllergyHistory(

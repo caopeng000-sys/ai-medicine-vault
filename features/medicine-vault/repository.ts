@@ -106,7 +106,9 @@ function mapMedicalRecord(record: {
   department: string
   symptoms: string
   diagnosis: string
+  clinicalSummary?: string
   examinationResults?: string
+  followUpAt?: string
   doctorAdvice: string
   prescriptionNote: string
   note: string
@@ -120,7 +122,9 @@ function mapMedicalRecord(record: {
     department: record.department,
     symptoms: record.symptoms,
     diagnosis: record.diagnosis,
+    clinicalSummary: record.clinicalSummary ?? "",
     examinationResults: record.examinationResults ?? "",
+    followUpAt: record.followUpAt ?? "",
     doctorAdvice: record.doctorAdvice,
     prescriptionNote: record.prescriptionNote,
     note: record.note,
@@ -721,7 +725,9 @@ export async function createMedicalRecord(ctx: RepositoryContext, input: CreateM
       department,
       symptoms: input.symptoms,
       diagnosis: input.diagnosis,
+      clinicalSummary: fallbackText(input.clinicalSummary, ""),
       examinationResults: fallbackText(input.examinationResults, ""),
+      followUpAt: fallbackText(input.followUpAt, ""),
       doctorAdvice: input.advice,
       prescriptionNote: "待补充处方信息。",
       note: "通过原型表单录入。",

@@ -7,6 +7,7 @@ import {
   detectAssistantIntent,
   findAllergyHistory,
   findRecentColdRecord,
+  findMedicineDisposalGuidance,
   findMedicineInteractionGuidance,
   findMedicineUsageGuidance,
   findVisitPreparation,
@@ -59,7 +60,7 @@ type AssistantDependencies = Readonly<{
 }>
 
 const UNSUPPORTED_MESSAGE =
-  "这类问题我现在还不支持。你可以问我上次什么时候感冒、我之前对哪些药有过不适、布洛芬怎么吃、家里有哪些抗过敏药、两种药能不能一起吃，或者下次看医生前要准备什么。"
+  "这类问题我现在还不支持。你可以问我上次什么时候感冒、我之前对哪些药有过不适、布洛芬怎么吃、家里有哪些抗过敏药、两种药能不能一起吃、过期药怎么处理，或者下次看医生前要准备什么。"
 const NO_RESULT_MESSAGE = "我找到了这个问题对应的方向，但暂时没有查到可用记录。"
 
 function buildSourceDetail(title: string, detail: string) {
@@ -114,6 +115,11 @@ function fallbackAnswer(intent: AssistantIntent, sources: AssistantSource[]) {
   if (intent === "medicine_interaction") {
     if (sources.length === 0) return NO_RESULT_MESSAGE
     return `我查到你提到的相关药品记录：${sources.map((item) => item.label).join("、")}。一起吃前先核对说明书，或问药师确认是否有重复成分、相互作用或用法冲突。`
+  }
+
+  if (intent === "medicine_disposal") {
+    if (sources.length === 0) return NO_RESULT_MESSAGE
+    return `我查到这些需要处理的药品：${sources.map((item) => item.label).join("、")}。过期药不要继续服用，建议按说明书或当地药品回收要求处理。`
   }
 
   if (intent === "medicine_query") {
@@ -196,10 +202,11 @@ async function defaultClassifyQuestion(question: string): Promise<AssistantClass
           content: [
             "你是一个家庭健康资料助手的意图识别器。",
             "只允许返回 JSON。",
-            '可选 intent 只有七个：recent_cold_record, allergy_history, medicine_usage, medicine_interaction, medicine_query, visit_preparation, unsupported。',
+            '可选 intent 只有八个：recent_cold_record, allergy_history, medicine_usage, medicine_interaction, medicine_disposal, medicine_query, visit_preparation, unsupported。',
             '如果问题在问“上次什么时候感冒 / 上次感冒 / 最近感冒记录”，返回 recent_cold_record。',
             '如果问题在问“我之前对哪些药有过不适 / 药物过敏史 / 过敏反应 / 不良反应”，返回 allergy_history。',
             '如果问题在问“能不能一起吃 / 相互作用 / 同服 / 联用 / 重复成分 / 不能同服”，返回 medicine_interaction。',
+            '如果问题在问“过期药怎么办 / 过期药还能不能吃 / 怎么处理过期药 / 家里有哪些过期药”，返回 medicine_disposal。',
             '如果问题在问“布洛芬怎么吃 / 服用方法 / 饭前饭后 / 注意事项 / 用法用量”，返回 medicine_usage。',
             '如果问题在问任何家庭药品相关问题，例如“家里有哪些抗咳嗽药 / 抗过敏药 / 退烧药 / 感冒药 / 止痛药”，返回 medicine_query。',
             '如果问题在问“下次看医生要准备什么 / 复诊要带什么 / 就医前准备什么”，返回 visit_preparation。',
@@ -364,7 +371,15 @@ export async function resolveAssistantQuery(
     const sources: AssistantSource[] = [
       {
         label: `病历 · ${match.member?.name ?? "未知成员"}`,
-        detail: buildSourceDetail(match.record.visitedAt, `${match.record.diagnosis} / ${match.record.symptoms}`),
+        detail: buildSourceDetail(
+          match.record.visitedAt,
+          [
+            match.record.diagnosis,
+            match.record.symptoms,
+            match.record.clinicalSummary || "暂无诊疗摘要",
+            match.record.followUpAt ? `复诊时间 ${match.record.followUpAt}` : "暂无复诊时间",
+          ].join(" / "),
+        ),
         memberId: match.record.memberId,
       },
     ]
@@ -495,6 +510,59 @@ export async function resolveAssistantQuery(
       ].join(" · "),
       memberId: match.medicine.memberId,
     }))
+
+    try {
+      const answer = await runtime.summarizeAnswer({
+        question: normalizedQuestion,
+        intent: classification.intent,
+        sources,
+        context: buildContext(classification.intent, sources),
+      })
+
+      return {
+        intent: classification.intent,
+        answer: answer || fallbackAnswer(classification.intent, sources),
+        sources,
+      }
+    } catch {
+      return {
+        intent: classification.intent,
+        answer: fallbackAnswer(classification.intent, sources),
+        sources,
+      }
+    }
+  }
+
+  if (classification.intent === "medicine_disposal") {
+    const [members, medicines] = await Promise.all([runtime.listMembers(ctx), runtime.listMedicines(ctx)])
+    const matches = findMedicineDisposalGuidance(medicines, members, normalizedQuestion)
+
+    if (!matches.length) {
+      return {
+        intent: classification.intent,
+        answer: NO_RESULT_MESSAGE,
+        sources: [],
+      }
+    }
+
+    const sources: AssistantSource[] = matches.map((match) => {
+      const statusText = match.medicine.expiresAt
+        ? `${match.medicine.expiresAt}${match.medicine.quantity ? ` · ${match.medicine.quantity}` : ""}`
+        : "暂无过期信息"
+      const daysLeft = new Date(`${match.medicine.expiresAt}T00:00:00+08:00`)
+      const today = new Date("2026-04-25T00:00:00+08:00")
+      const deltaDays = Math.ceil((daysLeft.getTime() - today.getTime()) / 86_400_000)
+      const reminder = deltaDays < 0 ? `已过期 ${Math.abs(deltaDays)} 天` : `距离过期 ${deltaDays} 天`
+
+      return {
+        label: `过期药处理 · ${match.member?.name ?? "未知成员"} · ${match.medicine.name}`,
+        detail: buildSourceDetail(
+          `${match.medicine.category} / ${reminder}`,
+          `${match.medicine.storageLocation} · ${match.medicine.usageNote} · ${match.medicine.safetyNote} · ${statusText}`,
+        ),
+        memberId: match.medicine.memberId,
+      }
+    })
 
     try {
       const answer = await runtime.summarizeAnswer({

@@ -6,6 +6,7 @@ import {
   detectAssistantIntent,
   findAllergyHistory,
   findAntiallergicMedicines,
+  findMedicineDisposalGuidance,
   findMedicineInteractionGuidance,
   findMedicineUsageGuidance,
   findRecentColdRecord,
@@ -56,6 +57,13 @@ describe("assistant routing helpers", () => {
     assert.equal(result.reason, "命中了相互作用意图")
   })
 
+  it("parses medicine disposal intent from JSON text", () => {
+    const result = parseAssistantIntent('{"intent":"medicine_disposal","reason":"命中了过期药处理意图"}')
+
+    assert.equal(result.intent, "medicine_disposal")
+    assert.equal(result.reason, "命中了过期药处理意图")
+  })
+
   it("finds allergy history records for self-related questions", () => {
     const result = findAllergyHistory(
       [
@@ -97,6 +105,10 @@ describe("assistant routing helpers", () => {
     assert.equal(detectAssistantIntent("布洛芬和感冒灵能不能一起吃"), "medicine_interaction")
   })
 
+  it("detects medicine disposal questions before medicine queries", () => {
+    assert.equal(detectAssistantIntent("过期药怎么办"), "medicine_disposal")
+  })
+
   it("finds medicine usage guidance records", () => {
     const result = findMedicineUsageGuidance(medicines, members, "布洛芬缓释胶囊怎么吃")
 
@@ -111,5 +123,13 @@ describe("assistant routing helpers", () => {
     assert.ok(result.length >= 1)
     assert.ok(result.some((item) => item.medicine.id === "medicine-ibuprofen"))
     assert.ok(result.some((item) => item.medicine.id === "medicine-cold-granule"))
+  })
+
+  it("finds medicine disposal guidance records", () => {
+    const result = findMedicineDisposalGuidance(medicines, members, "过期药怎么办")
+
+    assert.ok(result.length >= 1)
+    assert.ok(result.some((item) => item.medicine.id === "medicine-cefixime"))
+    assert.ok(result.every((item) => item.medicine.category !== "设备耗材"))
   })
 })

@@ -91,22 +91,24 @@ model Member {
 }
 
 model MedicalRecord {
-  id               String   @id @default(cuid())
-  userId           String
-  memberId         String
-  visitedAt        DateTime
-  hospitalName     String
-  department       String
-  symptoms         String
-  diagnosis        String
-  examinationResults String @default("")
-  doctorAdvice     String
-  prescriptionNote String   @default("")
-  note             String   @default("")
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  member           Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                 String   @id @default(cuid())
+  userId             String
+  memberId           String
+  visitedAt          DateTime
+  hospitalName       String
+  department         String
+  symptoms           String
+  diagnosis          String
+  clinicalSummary    String   @default("")
+  examinationResults String   @default("")
+  followUpAt         String   @default("")
+  doctorAdvice       String
+  prescriptionNote   String   @default("")
+  note               String   @default("")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  member             Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, memberId, visitedAt(sort: Desc)])
 }

@@ -159,11 +159,17 @@ export default async function Home() {
                 <>
                   <p className="text-xl font-semibold text-slate-950">{latestRecord.diagnosis}</p>
                   <p className="text-slate-600">{latestRecord.symptoms}</p>
+                  <p className="text-slate-600">{latestRecord.clinicalSummary || "暂无诊疗摘要。"}</p>
                   <p className="text-slate-600">{latestRecord.examinationResults || "暂无检查/检验结果。"}</p>
                   <p className="text-slate-600">{latestRecord.doctorAdvice}</p>
-                  <Badge className="w-fit rounded-full px-3 py-1" variant="secondary">
-                    {latestRecord.visitedAt} / {latestRecord.department}
-                  </Badge>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge className="w-fit rounded-full px-3 py-1" variant="secondary">
+                      {latestRecord.visitedAt} / {latestRecord.department}
+                    </Badge>
+                    <Badge className="w-fit rounded-full px-3 py-1" variant="outline">
+                      复诊 {latestRecord.followUpAt || "暂无时间"}
+                    </Badge>
+                  </div>
                 </>
               ) : (
                 <p className="text-slate-600">当前还没有真实病历记录，先从新增病历开始。</p>

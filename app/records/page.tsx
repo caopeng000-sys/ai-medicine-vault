@@ -66,11 +66,18 @@ export default async function RecordsPage({
                 { label: "医院与科室", name: "hospital", placeholder: "例如：市立医院 / 呼吸科" },
                 { label: "诊断结论", name: "diagnosis", placeholder: "例如：上呼吸道感染倾向" },
                 {
+                  label: "诊疗摘要",
+                  name: "clinicalSummary",
+                  placeholder: "例如：短期低烧合并咳嗽，对症处理为主。",
+                  type: "textarea",
+                },
+                {
                   label: "检查/检验结果",
                   name: "examinationResults",
                   placeholder: "例如：体温 38℃，血常规提示轻度炎症。",
                   type: "textarea",
                 },
+                { label: "复诊时间", name: "followUpAt", placeholder: "例如：2026-05-01" },
                 {
                   label: "症状描述",
                   name: "symptoms",
@@ -172,7 +179,7 @@ export default async function RecordsPage({
                 <CardContent className="grid gap-5 p-5">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="grid gap-3">
-                      <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                         <Badge className="rounded-full px-3 py-1" variant="secondary">
                           {owner?.name ?? "未知成员"}
                         </Badge>
@@ -181,6 +188,9 @@ export default async function RecordsPage({
                         </Badge>
                         <Badge className="rounded-full px-3 py-1" variant="outline">
                           {record.department}
+                        </Badge>
+                        <Badge className="rounded-full px-3 py-1" variant="outline">
+                          {record.followUpAt || "暂无复诊时间"}
                         </Badge>
                       </div>
 
@@ -199,7 +209,7 @@ export default async function RecordsPage({
                     </div>
                   </div>
 
-                  <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr_1fr_1fr]">
+                  <div className="grid gap-4 xl:grid-cols-[1.1fr_1fr_1fr_1fr_1fr]">
                     <div className="rounded-[22px] border border-slate-100 bg-slate-50/70 p-4">
                       <p className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
                         <StethoscopeIcon className="size-4 text-sky-500" aria-hidden="true" />
@@ -224,6 +234,24 @@ export default async function RecordsPage({
                       <p className="mt-3 text-sm leading-6 text-slate-600">
                         {record.examinationResults || "暂无检查/检验结果。"}
                       </p>
+                    </div>
+
+                    <div className="rounded-[22px] border border-slate-100 bg-slate-50/70 p-4">
+                      <p className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+                        <FileTextIcon className="size-4 text-violet-500" aria-hidden="true" />
+                        诊疗摘要
+                      </p>
+                      <p className="mt-3 text-sm leading-6 text-slate-600">
+                        {record.clinicalSummary || "暂无诊疗摘要。"}
+                      </p>
+                    </div>
+
+                    <div className="rounded-[22px] border border-slate-100 bg-slate-50/70 p-4">
+                      <p className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+                        <CalendarDaysIcon className="size-4 text-amber-500" aria-hidden="true" />
+                        复诊时间
+                      </p>
+                      <p className="mt-3 text-sm leading-6 text-slate-600">{record.followUpAt || "暂无复诊时间。"}</p>
                     </div>
 
                     <div className="rounded-[22px] border border-slate-100 bg-slate-50/70 p-4">
