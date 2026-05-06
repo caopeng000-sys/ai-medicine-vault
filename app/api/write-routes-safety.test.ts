@@ -5,6 +5,7 @@ import { createAllergiesHandler } from "./allergies/route"
 import { createAssistantQueryHandler } from "./assistant/query/route"
 import { createMedicineImageHandler } from "./medicines/[medicineId]/image/route"
 import { createMedicineDetailHandlers } from "./medicines/[medicineId]/route"
+import { createMedicineExtractHandler } from "./medicines/extract/route"
 import { createMedicinesHandler } from "./medicines/route"
 import { createMemberDetailHandlers } from "./members/[memberId]/route"
 import { createMembersHandler } from "./members/route"
@@ -520,6 +521,41 @@ describe("write route safety hardening", () => {
 
       assert.equal(response.status, 500)
       assert.doesNotMatch(payload.message, /DATABASE_URL|stack trace|secret/)
+    })
+  })
+
+  describe("medicine extract route", () => {
+    it("returns 401 when the medicine image extractor is requested without a session", async () => {
+      const handler = createMedicineExtractHandler(
+        async () => ({
+          name: "",
+          category: "",
+          dosage: "",
+          specification: "",
+          instructions: "",
+          purpose: "",
+          summary: "",
+          warnings: [],
+          originalText: "",
+        }),
+        async () => {
+          throw AUTH_ERROR
+        },
+      )
+
+      const formData = new FormData()
+      formData.set("image", new File([new Uint8Array([1, 2, 3])], "label.png", { type: "image/png" }))
+
+      const response = await handler(
+        new Request("http://localhost/api/medicines/extract", {
+          method: "POST",
+          body: formData,
+        }),
+      )
+      const payload = await readPayload(response)
+
+      assert.equal(response.status, 401)
+      assert.match(payload.message, /请先登录|拒绝访问/)
     })
   })
 

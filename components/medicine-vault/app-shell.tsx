@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from "react"
 import {
   ArrowUpRightIcon,
   BellIcon,
@@ -19,6 +20,7 @@ import {
   UsersIcon,
 } from "lucide-react"
 import Link from "next/link"
+import { signOut, useSession } from "next-auth/react"
 import { usePathname } from "next/navigation"
 import type { ReactNode } from "react"
 
@@ -26,6 +28,7 @@ import { ExperienceLinks } from "@/components/medicine-vault/experience-links"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import type { CurrentUser } from "@/features/medicine-vault/auth-context"
 import { cn } from "@/lib/utils"
 
 const primaryNavigation = [
@@ -46,9 +49,24 @@ const utilityNavigation = [
   { href: "/assistant", label: "系统设置", icon: SettingsIcon },
 ]
 
-export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
+export function AppShell({
+  children,
+  currentUser,
+}: Readonly<{
+  children: ReactNode
+  currentUser: CurrentUser | null
+}>) {
   const pathname = usePathname()
+  const { data: session, status } = useSession()
   const onLoginPage = pathname === "/login"
+  const activeUser = session?.user ?? currentUser
+  const isAuthenticated = Boolean(session?.user?.id)
+  const userInitials = useMemo(() => {
+    const source = activeUser?.name?.trim() || activeUser?.email?.trim() || "用户"
+    const parts = source.split(/\s+/).filter(Boolean)
+    const initials = parts.length > 1 ? `${parts[0]?.[0] ?? ""}${parts[1]?.[0] ?? ""}` : source.slice(0, 2)
+    return initials || "用"
+  }, [activeUser?.email, activeUser?.name])
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f8fcfd_0%,#eef7f8_52%,#f7fbfb_100%)]">
@@ -174,26 +192,59 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
                   </Button>
                 </div>
 
-                <Link
-                  className={cn(
-                    "flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm transition-colors",
-                    onLoginPage ? "border-emerald-200 bg-emerald-50/80" : "hover:bg-slate-50",
-                  )}
-                  href="/login"
-                >
-                  <span className="flex size-10 items-center justify-center rounded-full bg-gradient-to-br from-slate-900 to-slate-700 text-sm font-semibold text-white">
-                    {onLoginPage ? "ID" : "CP"}
-                  </span>
-                  <div className="hidden sm:block">
-                    <p className="text-sm font-medium text-slate-900">{onLoginPage ? "登录与会话" : "开发体验账号"}</p>
-                    <p className="text-xs text-slate-500">{onLoginPage ? "查看 provider 配置说明" : "管理登录、导出与隐私"}</p>
+                {status === "loading" ? (
+                  <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                    <span className="flex size-10 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold text-slate-600">
+                      ...
+                    </span>
+                    <div className="hidden sm:block">
+                      <p className="text-sm font-medium text-slate-900">正在读取会话</p>
+                      <p className="text-xs text-slate-500">请稍等一下</p>
+                    </div>
                   </div>
-                  {onLoginPage ? (
-                    <ChevronDownIcon className="size-4 text-emerald-500" aria-hidden="true" />
-                  ) : (
-                    <ArrowUpRightIcon className="size-4 text-slate-400" aria-hidden="true" />
-                  )}
-                </Link>
+                ) : isAuthenticated ? (
+                  <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/80 px-3 py-2 shadow-sm">
+                    <span className="flex size-10 items-center justify-center rounded-full bg-emerald-600 text-sm font-semibold text-white">
+                      {userInitials}
+                    </span>
+                    <div className="hidden sm:block">
+                      <p className="text-sm font-medium text-slate-900">{activeUser?.name ?? "已登录用户"}</p>
+                      <p className="text-xs text-slate-500">{activeUser?.email ?? "当前会话已连接"}</p>
+                    </div>
+                    <Button
+                      className="rounded-xl border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-100"
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        void signOut({ callbackUrl: "/login" })
+                      }}
+                    >
+                      退出登录
+                    </Button>
+                  </div>
+                ) : (
+                  <Link
+                    className={cn(
+                      "flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm transition-colors",
+                      onLoginPage ? "border-emerald-200 bg-emerald-50/80" : "hover:bg-slate-50",
+                    )}
+                    href="/login"
+                  >
+                    <span className="flex size-10 items-center justify-center rounded-full bg-gradient-to-br from-slate-900 to-slate-700 text-sm font-semibold text-white">
+                      {currentUser ? userInitials : "未"}
+                    </span>
+                    <div className="hidden sm:block">
+                      <p className="text-sm font-medium text-slate-900">{onLoginPage ? "登录与会话" : currentUser ? currentUser.name : "未登录"}</p>
+                      <p className="text-xs text-slate-500">{onLoginPage ? "查看 provider 配置说明" : currentUser ? currentUser.email ?? "开发体验模式" : "点击登录以使用真实会话"}</p>
+                    </div>
+                    {onLoginPage ? (
+                      <ChevronDownIcon className="size-4 text-emerald-500" aria-hidden="true" />
+                    ) : (
+                      <ArrowUpRightIcon className="size-4 text-slate-400" aria-hidden="true" />
+                    )}
+                  </Link>
+                )}
               </div>
             </div>
           </header>

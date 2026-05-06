@@ -72,6 +72,24 @@ docs/
 npm install
 ```
 
+启动本地 PostgreSQL：
+
+```bash
+npm run db:up
+```
+
+把 `.env.local.example` 复制为 `.env.local`，并确认其中的 `DATABASE_URL` 指向本地数据库：
+
+```text
+postgresql://postgres:postgres@127.0.0.1:5433/ai_medicine_vault?schema=public
+```
+
+执行 Prisma 迁移：
+
+```bash
+npx prisma migrate dev
+```
+
 启动开发服务：
 
 ```bash
@@ -96,6 +114,37 @@ npm run build
 npm run start
 ```
 
+如果你已经切到生产数据库并准备部署前迁移：
+
+```bash
+npm run prisma:deploy
+```
+
+药品图片默认写到本地文件系统，数据库只保留 `imageKey`。如果你想手动调整存储目录，可以设置：
+
+```bash
+MEDICINE_IMAGE_STORAGE_DIR=".tmp/medicine-images"
+```
+
+旧版本已经写入数据库的 `imageBytes` 仍然兼容读取，不会影响现有记录。
+
+如果你想把旧图片一次性迁到文件存储里，可以在连接好数据库后执行：
+
+```bash
+npm run medicine:backfill-images
+```
+
+如果你准备把图片切到 S3 兼容对象存储，把生产环境变量里的 `MEDICINE_IMAGE_STORAGE_PROVIDER` 改为 `s3`，并补充这些变量：
+
+```bash
+MEDICINE_IMAGE_STORAGE_BUCKET="..."
+MEDICINE_IMAGE_STORAGE_REGION="..."
+MEDICINE_IMAGE_STORAGE_ENDPOINT="..."
+MEDICINE_IMAGE_STORAGE_ACCESS_KEY_ID="..."
+MEDICINE_IMAGE_STORAGE_ACCESS_KEY_SECRET="..."
+MEDICINE_IMAGE_STORAGE_FORCE_PATH_STYLE="true"
+```
+
 ## 开发规范
 
 - 默认使用 TypeScript。
@@ -108,6 +157,44 @@ npm run start
 - 项目文档、提交信息和面向仓库的说明统一使用中文。
 
 更详细的前端约定见 [`docs/frontend-playbook.md`](docs/frontend-playbook.md)。
+
+## 本地 PostgreSQL
+
+本项目使用 PostgreSQL 作为正式数据库。为了不依赖付费云服务，仓库提供了本地 Docker 方案：
+
+- `npm run db:up`：启动 PostgreSQL 17
+- `npm run db:down`：停止数据库
+- `npm run db:logs`：查看数据库日志
+- `npm run db:reset`：重建本地数据库卷
+
+本地数据库默认监听 `127.0.0.1:5433`，用户名和密码都是 `postgres`，数据库名是 `ai_medicine_vault`。
+
+如果你想重置 schema，可以在数据库启动后执行：
+
+```bash
+npx prisma migrate dev
+```
+
+## 生产部署前配置
+
+如果你准备把项目接到真实生产数据库，可以先从 `.env.production.example` 拷贝出生产环境变量文件，再把其中的连接串和密钥替换为真实值。
+
+至少需要确认这些值：
+
+```bash
+DATABASE_URL="postgresql://..."
+AUTH_SECRET="..."
+AUTH_GITHUB_ID="..."
+AUTH_GITHUB_SECRET="..."
+DASHSCOPE_API_KEY="..."
+MEDICINE_IMAGE_STORAGE_PROVIDER="local"
+```
+
+然后执行：
+
+```bash
+npm run prisma:deploy
+```
 
 ## 产品方向
 

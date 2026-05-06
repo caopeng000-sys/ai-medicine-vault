@@ -13,6 +13,7 @@ import {
   TEST_DATABASE_NAME,
   TEST_DATABASE_PORT,
   TEST_DATABASE_URL,
+  USE_EXTERNAL_TEST_DATABASE,
   resetMedicineVaultTestData,
 } from "./helpers/test-db"
 
@@ -60,6 +61,10 @@ function ensurePostgresDataDir() {
 }
 
 function startPostgres() {
+  if (USE_EXTERNAL_TEST_DATABASE) {
+    return
+  }
+
   if (canConnectToPostgres()) {
     return
   }
@@ -77,6 +82,10 @@ function startPostgres() {
 }
 
 function ensureDatabaseExists() {
+  if (USE_EXTERNAL_TEST_DATABASE) {
+    return
+  }
+
   const exists = execFileSync(
     "psql",
     [
@@ -193,10 +202,12 @@ export default async function globalSetup(_config: FullConfig) {
       // Ignore teardown races.
     }
 
-    try {
-      runCommand("pg_ctl", ["-D", postgresDataDir, "stop", "-m", "fast"])
-    } catch {
-      // Ignore teardown races.
+    if (!USE_EXTERNAL_TEST_DATABASE) {
+      try {
+        runCommand("pg_ctl", ["-D", postgresDataDir, "stop", "-m", "fast"])
+      } catch {
+        // Ignore teardown races.
+      }
     }
 
     try {

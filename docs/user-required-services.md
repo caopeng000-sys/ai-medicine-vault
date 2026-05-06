@@ -106,19 +106,22 @@ DATABASE_URL="postgresql://..."
 可能需要的环境变量：
 
 ```bash
-STORAGE_PROVIDER="aliyun-oss"
-STORAGE_BUCKET="bucket 名称"
-STORAGE_REGION="地域"
-STORAGE_ENDPOINT="访问 endpoint"
-STORAGE_ACCESS_KEY_ID="访问 key"
-STORAGE_ACCESS_KEY_SECRET="访问 secret"
-STORAGE_PUBLIC_BASE_URL="图片公开访问地址，可选"
+MEDICINE_IMAGE_STORAGE_PROVIDER="s3"
+MEDICINE_IMAGE_STORAGE_BUCKET="bucket 名称"
+MEDICINE_IMAGE_STORAGE_REGION="地域"
+MEDICINE_IMAGE_STORAGE_ENDPOINT="访问 endpoint"
+MEDICINE_IMAGE_STORAGE_ACCESS_KEY_ID="访问 key"
+MEDICINE_IMAGE_STORAGE_ACCESS_KEY_SECRET="访问 secret"
+MEDICINE_IMAGE_STORAGE_FORCE_PATH_STYLE="true"
 ```
 
 备注：
 
 - 如果选择阿里云 OSS，后续可以和当前阿里百炼 API 生态保持一致。
 - 如果希望尽量省钱，Cloudflare R2 也是一个常见选择。
+- 当前代码默认先用本地文件系统存储图片；如果不想立刻接云存储，也可以先保留 `MEDICINE_IMAGE_STORAGE_PROVIDER="local"`，上线前再切换为 `s3` 兼容对象存储。
+- 走 S3 兼容对象存储时，实际需要的变量是 `MEDICINE_IMAGE_STORAGE_BUCKET`、`MEDICINE_IMAGE_STORAGE_REGION`、`MEDICINE_IMAGE_STORAGE_ENDPOINT`、`MEDICINE_IMAGE_STORAGE_ACCESS_KEY_ID`、`MEDICINE_IMAGE_STORAGE_ACCESS_KEY_SECRET` 和可选的 `MEDICINE_IMAGE_STORAGE_FORCE_PATH_STYLE`。
+- 如果你选阿里云 OSS，`MEDICINE_IMAGE_STORAGE_ENDPOINT` 通常会是对应地域的 OSS endpoint，bucket 名称和访问密钥从 OSS 控制台拿。
 
 ### 4. 生产部署平台
 
@@ -295,4 +298,3 @@ REDIS_TOKEN="..."
 3. 创建 GitHub OAuth App，并准备 `AUTH_GITHUB_ID` 和 `AUTH_GITHUB_SECRET`。
 
 这三项准备好后，项目就可以进入真正的生产环境联调。
-

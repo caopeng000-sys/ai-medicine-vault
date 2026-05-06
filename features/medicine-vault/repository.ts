@@ -21,6 +21,15 @@ import {
   paginateMedicines,
   sortMedicinesForDisplay,
 } from "@/features/medicine-vault/medicine-pagination"
+import {
+  backfillLegacyMedicineImage,
+  type LegacyMedicineImageRecord,
+} from "@/features/medicine-vault/medicine-image-backfill"
+import {
+  deleteMedicineImage,
+  readMedicineImage,
+  storeMedicineImage,
+} from "@/features/medicine-vault/medicine-image-storage"
 import type {
   CreateAllergyRecordInput,
   CreateMedicalRecordInput,
@@ -132,6 +141,7 @@ function mapMedicine(medicine: {
   usageNote: string
   safetyNote: string
   imageBytes?: Uint8Array | Buffer | null
+  imageKey?: string | null
   imageName?: string | null
 }): Medicine {
   return {
@@ -149,8 +159,27 @@ function mapMedicine(medicine: {
     storageLocation: medicine.storageLocation,
     usageNote: medicine.usageNote,
     safetyNote: medicine.safetyNote,
-    hasImage: Boolean(medicine.imageBytes?.length),
+    hasImage: medicineHasStoredImage(medicine),
     imageName: medicine.imageName ?? undefined,
+  }
+}
+
+export function medicineHasStoredImage(medicine: {
+  imageBytes?: Uint8Array | Buffer | null
+  imageKey?: string | null
+}) {
+  return Boolean(medicine.imageKey?.trim() || medicine.imageBytes?.length)
+}
+
+async function bestEffortDeleteMedicineImage(imageKey: string | undefined | null) {
+  if (!imageKey?.trim()) {
+    return
+  }
+
+  try {
+    await deleteMedicineImage(imageKey)
+  } catch {
+    // Image cleanup must never block medicine writes or deletes.
   }
 }
 
@@ -446,14 +475,66 @@ export async function getMedicineImageById(ctx: RepositoryContext, medicineId: s
         userId: ctx.userId,
       },
       select: {
+        id: true,
+        userId: true,
         name: true,
+        imageKey: true,
         imageBytes: true,
         imageMimeType: true,
         imageName: true,
       },
     })
 
-    if (!medicine?.imageBytes?.length) {
+    if (!medicine) {
+      return undefined
+    }
+
+    if (medicine?.imageKey) {
+      try {
+        const storedImage = await readMedicineImage(medicine.imageKey)
+
+        return {
+          name: medicine.name,
+          imageBytes: storedImage.imageBytes,
+          imageMimeType: storedImage.imageMimeType,
+          imageName: storedImage.imageName,
+        }
+      } catch {
+        // Fall back to legacy bytea data if the file-based image is missing or damaged.
+      }
+    }
+
+    const legacyBackfill = await backfillLegacyMedicineImage(
+      medicine,
+      {
+        storeMedicineImage: async (input) => storeMedicineImage(input),
+        updateMedicineImageKey: async (legacyMedicineId, imageKey) => {
+          await prisma.medicine.update({
+            where: { id: legacyMedicineId },
+            data: {
+              imageKey,
+              imageBytes: null,
+              imageMimeType: null,
+              imageName: null,
+            },
+          })
+        },
+        deleteMedicineImage: async (imageKey) => {
+          await deleteMedicineImage(imageKey)
+        },
+      }
+    )
+
+    if (legacyBackfill) {
+      return {
+        name: medicine.name,
+        imageBytes: medicine.imageBytes!,
+        imageMimeType: legacyBackfill.imageMimeType,
+        imageName: legacyBackfill.imageName,
+      }
+    }
+
+    if (!medicine.imageBytes?.length) {
       return undefined
     }
 
@@ -660,28 +741,47 @@ export async function createMedicine(
 
   await assertDatabaseMemberBelongsToUser(ctx, input.memberId)
 
-  const medicine = await prisma.medicine.create({
-    data: {
-      userId: ctx.userId,
-      memberId: input.memberId,
-      name: input.name,
-      category: input.category,
-      dosage: input.dosage,
-      instructions: input.instructions,
-      purpose: input.purpose,
-      specification: input.specification,
-      quantity: fallbackText(input.quantity, "1 份"),
-      expiresAt: toDateOnly(input.expiresAt),
-      storageLocation: fallbackText(input.storageLocation, "待补充存放位置。"),
-      usageNote: fallbackText(input.usageNote, "通过原型表单录入。"),
-      safetyNote: fallbackText(input.safetyNote, "后续需要补充更具体的用药风险提示。"),
-      imageBytes: image?.bytes,
-      imageMimeType: image?.mimeType,
-      imageName: image?.name,
-    },
-  })
+  const storedImage = image
+    ? await storeMedicineImage({
+        userId: ctx.userId,
+        medicineId: input.memberId,
+        imageBytes: image.bytes,
+        imageMimeType: image.mimeType,
+        imageName: image.name,
+      })
+    : undefined
 
-  return mapMedicine(medicine)
+  try {
+    const medicine = await prisma.medicine.create({
+      data: {
+        userId: ctx.userId,
+        memberId: input.memberId,
+        name: input.name,
+        category: input.category,
+        dosage: input.dosage,
+        instructions: input.instructions,
+        purpose: input.purpose,
+        specification: input.specification,
+        quantity: fallbackText(input.quantity, "1 份"),
+        expiresAt: toDateOnly(input.expiresAt),
+        storageLocation: fallbackText(input.storageLocation, "待补充存放位置。"),
+        usageNote: fallbackText(input.usageNote, "通过原型表单录入。"),
+        safetyNote: fallbackText(input.safetyNote, "后续需要补充更具体的用药风险提示。"),
+        imageKey: storedImage?.imageKey,
+        imageBytes: null,
+        imageMimeType: null,
+        imageName: null,
+      },
+    })
+
+    return mapMedicine(medicine)
+  } catch (error) {
+    if (storedImage) {
+      await bestEffortDeleteMedicineImage(storedImage.imageKey)
+    }
+
+    throw error
+  }
 }
 
 export async function updateMedicine(
@@ -698,38 +798,73 @@ export async function updateMedicine(
 
   await assertDatabaseMemberBelongsToUser(ctx, input.memberId)
 
-  const existingMedicine = await getMedicineById(ctx, medicineId)
+  const existingMedicine = await prisma.medicine.findFirst({
+    where: {
+      id: medicineId,
+      userId: ctx.userId,
+    },
+    select: {
+      id: true,
+      imageKey: true,
+      imageBytes: true,
+      imageMimeType: true,
+      imageName: true,
+    },
+  })
 
   if (!existingMedicine) {
     throw new Error("药品记录不存在或不属于当前用户。")
   }
 
-  const medicine = await prisma.medicine.update({
-    where: { id: medicineId },
-    data: {
-      memberId: input.memberId,
-      name: input.name,
-      category: input.category,
-      dosage: input.dosage,
-      instructions: input.instructions,
-      purpose: input.purpose,
-      specification: input.specification,
-      quantity: fallbackText(input.quantity, "1 份"),
-      storageLocation: fallbackText(input.storageLocation, "待补充存放位置。"),
-      usageNote: fallbackText(input.usageNote, "通过原型表单录入。"),
-      safetyNote: fallbackText(input.safetyNote, "后续需要补充更具体的用药风险提示。"),
-      expiresAt: toDateOnly(input.expiresAt),
-      ...(image
-        ? {
-            imageBytes: image.bytes,
-            imageMimeType: image.mimeType,
-            imageName: image.name,
-          }
-        : {}),
-    },
-  })
+  const storedImage = image
+    ? await storeMedicineImage({
+        userId: ctx.userId,
+        medicineId,
+        imageBytes: image.bytes,
+        imageMimeType: image.mimeType,
+        imageName: image.name,
+      })
+    : undefined
 
-  return mapMedicine(medicine)
+  try {
+    const medicine = await prisma.medicine.update({
+      where: { id: medicineId },
+      data: {
+        memberId: input.memberId,
+        name: input.name,
+        category: input.category,
+        dosage: input.dosage,
+        instructions: input.instructions,
+        purpose: input.purpose,
+        specification: input.specification,
+        quantity: fallbackText(input.quantity, "1 份"),
+        storageLocation: fallbackText(input.storageLocation, "待补充存放位置。"),
+        usageNote: fallbackText(input.usageNote, "通过原型表单录入。"),
+        safetyNote: fallbackText(input.safetyNote, "后续需要补充更具体的用药风险提示。"),
+        expiresAt: toDateOnly(input.expiresAt),
+        ...(storedImage
+          ? {
+              imageKey: storedImage.imageKey,
+              imageBytes: null,
+              imageMimeType: null,
+              imageName: null,
+            }
+          : {}),
+      },
+    })
+
+    if (storedImage && existingMedicine.imageKey && existingMedicine.imageKey !== storedImage.imageKey) {
+      await bestEffortDeleteMedicineImage(existingMedicine.imageKey)
+    }
+
+    return mapMedicine(medicine)
+  } catch (error) {
+    if (storedImage) {
+      await bestEffortDeleteMedicineImage(storedImage.imageKey)
+    }
+
+    throw error
+  }
 }
 
 export async function deleteMedicine(ctx: RepositoryContext, medicineId: string) {
@@ -739,7 +874,16 @@ export async function deleteMedicine(ctx: RepositoryContext, medicineId: string)
     throw new Error("当前还没有配置 DATABASE_URL，暂时无法写入真实数据库。")
   }
 
-  const existingMedicine = await getMedicineById(ctx, medicineId)
+  const existingMedicine = await prisma.medicine.findFirst({
+    where: {
+      id: medicineId,
+      userId: ctx.userId,
+    },
+    select: {
+      id: true,
+      imageKey: true,
+    },
+  })
 
   if (!existingMedicine) {
     throw new Error("药品记录不存在或不属于当前用户。")
@@ -748,6 +892,8 @@ export async function deleteMedicine(ctx: RepositoryContext, medicineId: string)
   const medicine = await prisma.medicine.delete({
     where: { id: medicineId },
   })
+
+  await bestEffortDeleteMedicineImage(existingMedicine.imageKey)
 
   return mapMedicine(medicine)
 }

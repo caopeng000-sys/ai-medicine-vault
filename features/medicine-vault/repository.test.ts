@@ -9,6 +9,7 @@ import {
   listMedicines,
   listMedicinesPaginated,
   listVisitPreparations,
+  medicineHasStoredImage,
 } from "./repository"
 
 const originalDatabaseUrl = process.env.DATABASE_URL
@@ -71,5 +72,11 @@ describe("listMedicinesPaginated", () => {
     assert.equal((await listMedicinesPaginated(otherCtx, { page: 1, pageSize: 6 })).total, 0)
     assert.equal((await listAllergyRecords(otherCtx)).length, 0)
     assert.equal((await listVisitPreparations(otherCtx)).length, 0)
+  })
+
+  it("treats legacy image bytes and stored image keys as image presence", () => {
+    assert.equal(medicineHasStoredImage({ imageBytes: new Uint8Array([1]) }), true)
+    assert.equal(medicineHasStoredImage({ imageKey: "image-key-1" }), true)
+    assert.equal(medicineHasStoredImage({}), false)
   })
 })

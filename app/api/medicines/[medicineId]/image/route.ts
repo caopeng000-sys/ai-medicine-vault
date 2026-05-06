@@ -28,7 +28,7 @@ export function createMedicineImageHandler(dependencies: Partial<MedicineImageDe
         .replace(/[^\x20-\x7E]/g, "_")
       const encodedFileName = encodeURIComponent(medicineImage.imageName)
 
-      return new Response(medicineImage.imageBytes, {
+      return new Response(Buffer.from(medicineImage.imageBytes), {
         headers: {
           "Content-Type": medicineImage.imageMimeType,
           "Content-Disposition": `inline; filename="${safeFileName}"; filename*=UTF-8''${encodedFileName}`,

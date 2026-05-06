@@ -8,12 +8,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const repositoryRoot = path.resolve(__dirname, "../../..")
 const defaultBaseUrl = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3100"
 const baseUrl = new URL(defaultBaseUrl)
+const defaultTestDatabaseUrl = "postgresql://postgres@127.0.0.1:55432/ai_medicine_vault_e2e"
 
 export const TEST_APP_PORT = Number(baseUrl.port || process.env.PLAYWRIGHT_PORT || 3000)
 export const TEST_APP_URL = defaultBaseUrl
-export const TEST_DATABASE_PORT = 55432
-export const TEST_DATABASE_NAME = "ai_medicine_vault_e2e"
-export const TEST_DATABASE_URL = `postgresql://postgres@127.0.0.1:${TEST_DATABASE_PORT}/${TEST_DATABASE_NAME}`
+export const TEST_DATABASE_URL = process.env.PLAYWRIGHT_TEST_DATABASE_URL?.trim() || defaultTestDatabaseUrl
+export const TEST_DATABASE_PORT = Number(new URL(TEST_DATABASE_URL).port || "5432")
+export const TEST_DATABASE_NAME = new URL(TEST_DATABASE_URL).pathname.replace(/^\//, "") || "ai_medicine_vault_e2e"
+export const USE_EXTERNAL_TEST_DATABASE = Boolean(process.env.PLAYWRIGHT_TEST_DATABASE_URL?.trim())
 
 const seededUserId = "user-development"
 const seededMemberId = "member-cp"
