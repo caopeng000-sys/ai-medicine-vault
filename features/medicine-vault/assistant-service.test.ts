@@ -57,7 +57,7 @@ describe("assistant service", () => {
     assert.equal(result.answer, "")
     assert.equal(
       result.message,
-      "这类问题我现在还不支持。你可以问我上次什么时候感冒、我之前对哪些药有过不适、布洛芬怎么吃、家里有哪些抗过敏药，或者下次看医生前要准备什么。",
+      "这类问题我现在还不支持。你可以问我上次什么时候感冒、我之前对哪些药有过不适、布洛芬怎么吃、家里有哪些抗过敏药、两种药能不能一起吃，或者下次看医生前要准备什么。",
     )
     assert.equal(askedMembers, false)
     assert.equal(askedRecords, false)
@@ -113,6 +113,26 @@ describe("assistant service", () => {
     assert.equal(result.answer, "medicine_usage:用药说明 · 曹鹏 · 布洛芬缓释胶囊")
     assert.equal(result.sources[0]?.label, "用药说明 · 曹鹏 · 布洛芬缓释胶囊")
     assert.equal(result.sources[0]?.memberId, "member-cp")
+  })
+
+  it("routes medicine interaction questions to the interaction flow", async () => {
+    const result = await resolveAssistantQuery(ctx, "布洛芬和感冒灵能不能一起吃？", {
+      classifyQuestion: async () => ({
+        intent: "medicine_interaction",
+        reason: "相互作用问题应进入用药联用查询",
+      }),
+      selectMedicines: async () => ({ selectedIds: [], summary: "", reason: "" }),
+      summarizeAnswer: async ({ intent, sources }) => `${intent}:${sources.map((source) => source.label).join("|")}`,
+      listMembers: async () => members,
+      listAllergyRecords: async () => [],
+      listMedicalRecords: async () => medicalRecords,
+      listMedicines: async () => medicines,
+    })
+
+    assert.equal(result.intent, "medicine_interaction")
+    assert.equal(result.answer, "medicine_interaction:药品 · 布洛芬缓释胶囊|药品 · 感冒灵颗粒")
+    assert.equal(result.sources[0]?.label, "药品 · 布洛芬缓释胶囊")
+    assert.equal(result.sources[1]?.label, "药品 · 感冒灵颗粒")
   })
 
   it("routes cough medicine questions to the medicine query flow", async () => {

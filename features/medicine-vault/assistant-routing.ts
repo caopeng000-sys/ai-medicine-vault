@@ -4,6 +4,7 @@ export type AssistantIntent =
   | "recent_cold_record"
   | "allergy_history"
   | "medicine_usage"
+  | "medicine_interaction"
   | "medicine_query"
   | "visit_preparation"
   | "unsupported"
@@ -70,6 +71,18 @@ const MEDICINE_USAGE_KEYWORDS = [
   "怎么服用",
   "怎么使用",
 ]
+const MEDICINE_INTERACTION_KEYWORDS = [
+  "相互作用",
+  "同服",
+  "一起吃",
+  "能不能一起吃",
+  "联用",
+  "不能同服",
+  "重复成分",
+  "一起用",
+  "能一起吃",
+  "可不可以一起吃",
+]
 const VISIT_PREPARATION_KEYWORDS = ["复诊", "就医准备", "就诊前", "就医前", "看医生前", "带什么", "准备什么", "检查前"]
 
 function joinMedicineText(medicine: Medicine) {
@@ -92,6 +105,7 @@ function joinRecordText(record: MedicalRecord) {
   return [
     record.symptoms,
     record.diagnosis,
+    record.examinationResults,
     record.doctorAdvice,
     record.prescriptionNote,
     record.note,
@@ -121,6 +135,7 @@ export function parseAssistantIntent(rawText: string): AssistantIntentParseResul
         parsed.intent === "recent_cold_record" ||
         parsed.intent === "allergy_history" ||
         parsed.intent === "medicine_usage" ||
+        parsed.intent === "medicine_interaction" ||
         parsed.intent === "medicine_query" ||
         parsed.intent === "visit_preparation"
           ? parsed.intent
@@ -140,6 +155,10 @@ export function detectAssistantIntent(question: string): AssistantIntent {
 
   if (!normalized) {
     return "unsupported"
+  }
+
+  if (MEDICINE_INTERACTION_KEYWORDS.some((keyword) => normalized.includes(keyword))) {
+    return "medicine_interaction"
   }
 
   const coldQuestionKeywords = ["感冒", "发烧", "发热", "咳嗽", "鼻塞", "流涕", "上呼吸道感染"]
@@ -214,6 +233,23 @@ function stripMedicineUsageKeywords(question: string) {
     .trim()
 }
 
+function stripMedicineInteractionKeywords(question: string) {
+  return MEDICINE_INTERACTION_KEYWORDS.reduce((current, keyword) => current.replaceAll(keyword, " "), question.toLowerCase())
+    .replace(/[？?。！!、,，/·]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function medicineNameFragments(medicineName: string) {
+  return medicineName
+    .toLowerCase()
+    .replace(/[（）()【】\[\]·、,，/]/g, " ")
+    .split(/\s+/)
+    .flatMap((part) => part.split(/(缓释|控释|胶囊|片|颗粒|口服液|喷雾|滴剂|软膏|贴|丸|冲剂|糖浆|注射液)/g))
+    .map((item) => item.trim())
+    .filter((item) => item.length > 1)
+}
+
 export function findMedicineUsageGuidance(
   medicines: Medicine[],
   members: Member[],
@@ -248,6 +284,52 @@ export function findMedicineUsageGuidance(
     const hasKeywordHint = keywordHints.some((hint) => normalizedQuestion.includes(hint)) && questionTerms.some((term) => text.includes(term))
 
     return hasDirectMedicineName || hasQuestionTermMatch || hasKeywordHint
+  })
+
+  return matchedMedicines
+    .map((medicine) => ({
+      medicine,
+      member: members.find((item) => item.id === medicine.memberId),
+    }))
+    .sort((left, right) => left.medicine.name.localeCompare(right.medicine.name, "zh-Hans-CN"))
+}
+
+export function findMedicineInteractionGuidance(
+  medicines: Medicine[],
+  members: Member[],
+  question: string,
+): AssistantMedicineUsageMatch[] {
+  const normalizedQuestion = question.trim().toLowerCase()
+  const strippedQuestion = stripMedicineInteractionKeywords(question)
+  const questionTerms = normalizeQuestionTerms(question)
+  const interactionHints = ["一起", "同服", "联用", "合用", "重复", "成分"]
+
+  const matchedMedicines = medicines.filter((medicine) => {
+    const text = joinMedicineText(medicine)
+    const medicineFields = [
+      medicine.name,
+      medicine.category,
+      medicine.dosage,
+      medicine.instructions,
+      medicine.purpose,
+      medicine.specification,
+      medicine.usageNote,
+      medicine.safetyNote,
+    ]
+      .join(" ")
+      .toLowerCase()
+
+    const hasDirectMedicineName =
+      medicineFields.includes(normalizedQuestion) ||
+      normalizedQuestion.includes(medicine.name.toLowerCase()) ||
+      (strippedQuestion.length > 0 && medicineFields.includes(strippedQuestion)) ||
+      (strippedQuestion.length > 0 && medicine.name.toLowerCase().includes(strippedQuestion))
+    const hasQuestionTermMatch =
+      questionTerms.some((term) => medicineFields.includes(term) || strippedQuestion.includes(term)) ||
+      medicineNameFragments(medicine.name).some((fragment) => normalizedQuestion.includes(fragment))
+    const hasInteractionHint = interactionHints.some((hint) => normalizedQuestion.includes(hint)) && questionTerms.some((term) => text.includes(term))
+
+    return hasDirectMedicineName || hasQuestionTermMatch || hasInteractionHint
   })
 
   return matchedMedicines

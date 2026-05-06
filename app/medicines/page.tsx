@@ -312,6 +312,16 @@ export default async function MedicinesPage({
                     />
                   </div>
 
+                  <Button
+                    asChild
+                    className="h-11 w-full rounded-full border-slate-200 bg-slate-900 px-5 text-white shadow-sm transition-colors hover:bg-slate-800"
+                  >
+                    <Link href={`/medicines/${medicine.id}`}>
+                      查看详情
+                      <ChevronRightIcon className="size-4" aria-hidden="true" />
+                    </Link>
+                  </Button>
+
                   <div className="grid gap-4 text-sm leading-6 text-slate-600">
                     <div className="grid gap-1">
                       <p className="text-xs font-medium tracking-wide text-slate-400">剂量</p>

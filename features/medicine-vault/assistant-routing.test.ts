@@ -6,6 +6,7 @@ import {
   detectAssistantIntent,
   findAllergyHistory,
   findAntiallergicMedicines,
+  findMedicineInteractionGuidance,
   findMedicineUsageGuidance,
   findRecentColdRecord,
   parseAssistantIntent,
@@ -48,6 +49,13 @@ describe("assistant routing helpers", () => {
     assert.equal(result.reason, "命中了用药说明意图")
   })
 
+  it("parses medicine interaction intent from JSON text", () => {
+    const result = parseAssistantIntent('{"intent":"medicine_interaction","reason":"命中了相互作用意图"}')
+
+    assert.equal(result.intent, "medicine_interaction")
+    assert.equal(result.reason, "命中了相互作用意图")
+  })
+
   it("finds allergy history records for self-related questions", () => {
     const result = findAllergyHistory(
       [
@@ -85,11 +93,23 @@ describe("assistant routing helpers", () => {
     assert.equal(detectAssistantIntent("布洛芬缓释胶囊怎么吃"), "medicine_usage")
   })
 
+  it("detects medicine interaction questions before medicine queries", () => {
+    assert.equal(detectAssistantIntent("布洛芬和感冒灵能不能一起吃"), "medicine_interaction")
+  })
+
   it("finds medicine usage guidance records", () => {
     const result = findMedicineUsageGuidance(medicines, members, "布洛芬缓释胶囊怎么吃")
 
     assert.ok(result.length >= 1)
     assert.equal(result[0]?.medicine.id, "medicine-ibuprofen")
     assert.equal(result[0]?.member?.name, "曹鹏")
+  })
+
+  it("finds medicine interaction guidance records", () => {
+    const result = findMedicineInteractionGuidance(medicines, members, "布洛芬和感冒灵能不能一起吃")
+
+    assert.ok(result.length >= 1)
+    assert.ok(result.some((item) => item.medicine.id === "medicine-ibuprofen"))
+    assert.ok(result.some((item) => item.medicine.id === "medicine-cold-granule"))
   })
 })

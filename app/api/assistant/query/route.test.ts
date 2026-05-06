@@ -217,4 +217,40 @@ describe("assistant query route", () => {
     assert.equal(payload.sources[0]?.label, "用药说明 · 曹鹏 · 布洛芬缓释胶囊")
     assert.equal(payload.sources[0]?.memberId, "member-cp")
   })
+
+  it("returns medicine interaction answers unchanged", async () => {
+    const handler = createAssistantQueryHandler(
+      async () => ({
+        intent: "medicine_interaction",
+        answer: "这两种药先核对说明书再一起用。",
+        sources: [
+          { label: "药品 · 布洛芬缓释胶囊", detail: "止痛退烧 · 胃部不适、重复退烧药叠加需谨慎。", memberId: "member-cp" },
+          { label: "药品 · 感冒灵颗粒", detail: "感冒对症 · 与退烧止痛药同服前，需要先确认成分是否重复。", memberId: "member-mom" },
+        ],
+      }),
+      async () => ({ userId: DEFAULT_DEVELOPMENT_USER.id }),
+    )
+
+    const response = await handler(
+      new Request("http://localhost/api/assistant/query", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ question: "布洛芬和感冒灵能不能一起吃？" }),
+      }),
+    )
+
+    const payload = (await response.json()) as {
+      intent: string
+      answer: string
+      sources: Array<{ label: string; detail: string; memberId: string }>
+    }
+
+    assert.equal(response.status, 200)
+    assert.equal(payload.intent, "medicine_interaction")
+    assert.equal(payload.answer, "这两种药先核对说明书再一起用。")
+    assert.equal(payload.sources[0]?.label, "药品 · 布洛芬缓释胶囊")
+    assert.equal(payload.sources[1]?.label, "药品 · 感冒灵颗粒")
+  })
 })

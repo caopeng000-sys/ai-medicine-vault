@@ -99,6 +99,7 @@ model MedicalRecord {
   department       String
   symptoms         String
   diagnosis        String
+  examinationResults String @default("")
   doctorAdvice     String
   prescriptionNote String   @default("")
   note             String   @default("")

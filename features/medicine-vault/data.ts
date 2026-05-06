@@ -18,6 +18,7 @@ export type MedicalRecord = {
   department: string
   symptoms: string
   diagnosis: string
+  examinationResults?: string
   doctorAdvice: string
   prescriptionNote: string
   note: string
@@ -106,6 +107,7 @@ export const medicalRecords: MedicalRecord[] = [
     department: "全科",
     symptoms: "低烧、咳嗽、咽喉不适，夜间加重。",
     diagnosis: "上呼吸道感染倾向。",
+    examinationResults: "体温 38.1℃，咽部充血，肺部听诊未见明显异常。",
     doctorAdvice: "多饮水，观察体温变化，若高热或喘憋及时复诊。",
     prescriptionNote: "对症处理，避免自行叠加退烧药。",
     note: "就医前已服用一次布洛芬，需要下次复诊时说明。",
@@ -119,6 +121,7 @@ export const medicalRecords: MedicalRecord[] = [
     department: "耳鼻喉科",
     symptoms: "鼻塞、打喷嚏、流清涕，换季明显。",
     diagnosis: "过敏性鼻炎。",
+    examinationResults: "鼻腔黏膜充血，打喷嚏时症状明显。",
     doctorAdvice: "减少过敏原暴露，规律使用鼻喷剂，必要时复查。",
     prescriptionNote: "氯雷他定按需使用，鼻喷剂按医嘱使用。",
     note: "春季复发明显，可作为后续 AI 问答的重要上下文。",
@@ -132,6 +135,7 @@ export const medicalRecords: MedicalRecord[] = [
     department: "心内科",
     symptoms: "偶发头晕，晨起血压偏高。",
     diagnosis: "血压波动，需要家庭监测。",
+    examinationResults: "晨起血压偏高，建议继续记录晨晚血压变化。",
     doctorAdvice: "记录晨晚血压，低盐饮食，按时复诊。",
     prescriptionNote: "药物调整需由医生确认。",
     note: "后续需要增加血压记录模块，目前先作为病历备注保留。",
@@ -145,6 +149,7 @@ export const medicalRecords: MedicalRecord[] = [
     department: "儿科",
     symptoms: "皮疹、瘙痒，进食海鲜后出现。",
     diagnosis: "疑似食物过敏。",
+    examinationResults: "皮疹分布于躯干和四肢，建议进一步观察并记录诱因。",
     doctorAdvice: "避免再次接触可疑食物，必要时做过敏原检查。",
     prescriptionNote: "儿童用药剂量必须由医生或药师确认。",
     note: "家庭成员查看时需要突出显示。",

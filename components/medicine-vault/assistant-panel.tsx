@@ -23,6 +23,7 @@ import type { AssistantIntent } from "@/features/medicine-vault/assistant-routin
 const suggestedQuestions = [
   "我上次什么时候感冒？",
   "家里有哪些抗过敏药？",
+  "布洛芬和感冒灵能不能一起吃？",
   "我之前对哪些药有过不适？",
   "布洛芬缓释胶囊怎么吃？",
   "下次看医生前应该准备哪些问题？",
@@ -32,6 +33,7 @@ const intentLabels: Record<AssistantIntent, string> = {
   recent_cold_record: "感冒记录",
   allergy_history: "过敏记录",
   medicine_usage: "用药说明",
+  medicine_interaction: "药物相互作用",
   medicine_query: "药品查询",
   visit_preparation: "就医准备",
   unsupported: "未支持",
@@ -120,8 +122,8 @@ export function AssistantPanel() {
                 <MessageSquareTextIcon className="size-4 text-violet-500" aria-hidden="true" />
                 支持意图
               </p>
-              <p className="mt-3 text-3xl font-semibold text-slate-950">5</p>
-              <p className="mt-1 text-sm text-slate-500">当前保留五个固定意图，回答稳定且带来源。</p>
+              <p className="mt-3 text-3xl font-semibold text-slate-950">6</p>
+              <p className="mt-1 text-sm text-slate-500">当前保留六个固定意图，回答稳定且带来源。</p>
             </div>
 
             <div className="rounded-2xl border border-emerald-100 bg-emerald-50/85 p-4">
@@ -294,7 +296,7 @@ export function AssistantPanel() {
               <div className="flex items-start gap-3 rounded-[22px] border border-emerald-100 bg-emerald-50/70 p-4">
                 <ShieldCheckIcon className="mt-0.5 size-4 text-emerald-600" aria-hidden="true" />
                 <p className="text-sm leading-6 text-slate-600">
-                  当前支持感冒记录、过敏记录、用药说明、药品查询和就医准备五个意图。我们先把这五类打稳，再往外扩。
+                  当前支持感冒记录、过敏记录、用药说明、药物相互作用、药品查询和就医准备七个意图。我们先把这七类打稳，再往外扩。
                 </p>
               </div>
             </CardContent>

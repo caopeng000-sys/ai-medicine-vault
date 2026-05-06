@@ -66,6 +66,12 @@ export default async function RecordsPage({
                 { label: "医院与科室", name: "hospital", placeholder: "例如：市立医院 / 呼吸科" },
                 { label: "诊断结论", name: "diagnosis", placeholder: "例如：上呼吸道感染倾向" },
                 {
+                  label: "检查/检验结果",
+                  name: "examinationResults",
+                  placeholder: "例如：体温 38℃，血常规提示轻度炎症。",
+                  type: "textarea",
+                },
+                {
                   label: "症状描述",
                   name: "symptoms",
                   placeholder: "记录就诊时的主要症状和持续时间。",
@@ -193,7 +199,7 @@ export default async function RecordsPage({
                     </div>
                   </div>
 
-                  <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr_1fr]">
+                  <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr_1fr_1fr]">
                     <div className="rounded-[22px] border border-slate-100 bg-slate-50/70 p-4">
                       <p className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
                         <StethoscopeIcon className="size-4 text-sky-500" aria-hidden="true" />
@@ -208,6 +214,16 @@ export default async function RecordsPage({
                         医生建议
                       </p>
                       <p className="mt-3 text-sm leading-6 text-slate-600">{record.doctorAdvice}</p>
+                    </div>
+
+                    <div className="rounded-[22px] border border-slate-100 bg-slate-50/70 p-4">
+                      <p className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+                        <FileTextIcon className="size-4 text-amber-500" aria-hidden="true" />
+                        检查/检验结果
+                      </p>
+                      <p className="mt-3 text-sm leading-6 text-slate-600">
+                        {record.examinationResults || "暂无检查/检验结果。"}
+                      </p>
                     </div>
 
                     <div className="rounded-[22px] border border-slate-100 bg-slate-50/70 p-4">

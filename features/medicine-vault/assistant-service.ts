@@ -7,6 +7,7 @@ import {
   detectAssistantIntent,
   findAllergyHistory,
   findRecentColdRecord,
+  findMedicineInteractionGuidance,
   findMedicineUsageGuidance,
   findVisitPreparation,
   parseAssistantIntent,
@@ -58,7 +59,7 @@ type AssistantDependencies = Readonly<{
 }>
 
 const UNSUPPORTED_MESSAGE =
-  "这类问题我现在还不支持。你可以问我上次什么时候感冒、我之前对哪些药有过不适、布洛芬怎么吃、家里有哪些抗过敏药，或者下次看医生前要准备什么。"
+  "这类问题我现在还不支持。你可以问我上次什么时候感冒、我之前对哪些药有过不适、布洛芬怎么吃、家里有哪些抗过敏药、两种药能不能一起吃，或者下次看医生前要准备什么。"
 const NO_RESULT_MESSAGE = "我找到了这个问题对应的方向，但暂时没有查到可用记录。"
 
 function buildSourceDetail(title: string, detail: string) {
@@ -108,6 +109,11 @@ function fallbackAnswer(intent: AssistantIntent, sources: AssistantSource[]) {
   if (intent === "medicine_usage") {
     if (sources.length === 0) return NO_RESULT_MESSAGE
     return `我整理到这些用药说明：${sources.map((item) => item.label).join("、")}。`
+  }
+
+  if (intent === "medicine_interaction") {
+    if (sources.length === 0) return NO_RESULT_MESSAGE
+    return `我查到你提到的相关药品记录：${sources.map((item) => item.label).join("、")}。一起吃前先核对说明书，或问药师确认是否有重复成分、相互作用或用法冲突。`
   }
 
   if (intent === "medicine_query") {
@@ -190,9 +196,10 @@ async function defaultClassifyQuestion(question: string): Promise<AssistantClass
           content: [
             "你是一个家庭健康资料助手的意图识别器。",
             "只允许返回 JSON。",
-            '可选 intent 只有六个：recent_cold_record, allergy_history, medicine_usage, medicine_query, visit_preparation, unsupported。',
+            '可选 intent 只有七个：recent_cold_record, allergy_history, medicine_usage, medicine_interaction, medicine_query, visit_preparation, unsupported。',
             '如果问题在问“上次什么时候感冒 / 上次感冒 / 最近感冒记录”，返回 recent_cold_record。',
             '如果问题在问“我之前对哪些药有过不适 / 药物过敏史 / 过敏反应 / 不良反应”，返回 allergy_history。',
+            '如果问题在问“能不能一起吃 / 相互作用 / 同服 / 联用 / 重复成分 / 不能同服”，返回 medicine_interaction。',
             '如果问题在问“布洛芬怎么吃 / 服用方法 / 饭前饭后 / 注意事项 / 用法用量”，返回 medicine_usage。',
             '如果问题在问任何家庭药品相关问题，例如“家里有哪些抗咳嗽药 / 抗过敏药 / 退烧药 / 感冒药 / 止痛药”，返回 medicine_query。',
             '如果问题在问“下次看医生要准备什么 / 复诊要带什么 / 就医前准备什么”，返回 visit_preparation。',
@@ -442,6 +449,50 @@ export async function resolveAssistantQuery(
         match.medicine.category,
         `${match.medicine.dosage} · ${match.medicine.instructions} · ${match.medicine.usageNote} · ${match.medicine.safetyNote}`,
       ),
+      memberId: match.medicine.memberId,
+    }))
+
+    try {
+      const answer = await runtime.summarizeAnswer({
+        question: normalizedQuestion,
+        intent: classification.intent,
+        sources,
+        context: buildContext(classification.intent, sources),
+      })
+
+      return {
+        intent: classification.intent,
+        answer: answer || fallbackAnswer(classification.intent, sources),
+        sources,
+      }
+    } catch {
+      return {
+        intent: classification.intent,
+        answer: fallbackAnswer(classification.intent, sources),
+        sources,
+      }
+    }
+  }
+
+  if (classification.intent === "medicine_interaction") {
+    const [members, medicines] = await Promise.all([runtime.listMembers(ctx), runtime.listMedicines(ctx)])
+    const matches = findMedicineInteractionGuidance(medicines, members, normalizedQuestion)
+
+    if (!matches.length) {
+      return {
+        intent: classification.intent,
+        answer: NO_RESULT_MESSAGE,
+        sources: [],
+      }
+    }
+
+    const sources: AssistantSource[] = matches.map((match) => ({
+      label: `药品 · ${match.medicine.name}`,
+      detail: [
+        match.medicine.category,
+        `${match.member?.name ?? "未知成员"} · ${match.medicine.purpose}`,
+        `${match.medicine.instructions} / ${match.medicine.usageNote} / ${match.medicine.safetyNote}`,
+      ].join(" · "),
       memberId: match.medicine.memberId,
     }))
 

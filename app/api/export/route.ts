@@ -106,6 +106,7 @@ function buildCsvExport(input: {
         record.department,
         record.hospitalName,
         record.diagnosis,
+        record.examinationResults ?? "",
         record.symptoms,
         record.note,
       ]),
