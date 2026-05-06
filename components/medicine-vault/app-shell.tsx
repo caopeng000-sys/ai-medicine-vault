@@ -41,7 +41,8 @@ const primaryNavigation = [
 
 const secondaryNavigation = [
   { href: "/visit-prep", label: "就医准备", icon: ClipboardListIcon },
-  { href: "/allergies", label: "风险提醒", icon: ShieldAlertIcon },
+  { href: "/reminders", label: "提醒中心", icon: BellIcon },
+  { href: "/allergies", label: "过敏记录", icon: ShieldAlertIcon },
 ]
 
 const utilityNavigation = [
