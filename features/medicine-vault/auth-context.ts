@@ -41,6 +41,10 @@ function isProduction() {
   return process.env.NODE_ENV === "production"
 }
 
+function shouldAllowDevelopmentFallback() {
+  return process.env.PLAYWRIGHT_E2E === "1" || process.env.NODE_ENV !== "production"
+}
+
 function mapSessionUser(session: AuthSession | null): CurrentUser | null {
   const sessionUser = session?.user
   const id = sessionUser?.id?.trim()
@@ -80,7 +84,7 @@ export function createAuthContext(options: AuthContextOptions = {}) {
         }
       }
 
-      if (isProduction()) {
+      if (!shouldAllowDevelopmentFallback()) {
         return null
       }
 

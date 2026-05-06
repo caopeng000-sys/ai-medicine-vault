@@ -24,6 +24,7 @@ describe("assistant service", () => {
     assert.equal(result.intent, "recent_cold_record")
     assert.equal(result.answer, "recent_cold_record:我上次什么时候感冒")
     assert.ok(result.sources.some((source) => source.label.includes("病历")))
+    assert.equal(result.sources[0]?.memberId, "member-cp")
   })
 
   it("returns a friendly hint for unsupported questions", async () => {
@@ -54,10 +55,64 @@ describe("assistant service", () => {
 
     assert.equal(result.intent, "unsupported")
     assert.equal(result.answer, "")
-    assert.equal(result.message, "这类问题我现在还不支持。你可以问我上次什么时候感冒，或者家里有哪些抗过敏药。")
+    assert.equal(
+      result.message,
+      "这类问题我现在还不支持。你可以问我上次什么时候感冒、我之前对哪些药有过不适、布洛芬怎么吃、家里有哪些抗过敏药，或者下次看医生前要准备什么。",
+    )
     assert.equal(askedMembers, false)
     assert.equal(askedRecords, false)
     assert.equal(askedMedicines, false)
+  })
+
+  it("routes allergy history questions to the allergy flow", async () => {
+    const result = await resolveAssistantQuery(ctx, "我之前对哪些药有过不适？", {
+      classifyQuestion: async () => ({
+        intent: "allergy_history",
+        reason: "过敏史问题应进入过敏记录查询",
+      }),
+      selectMedicines: async () => ({ selectedIds: [], summary: "", reason: "" }),
+      summarizeAnswer: async ({ intent, sources }) => `${intent}:${sources.map((source) => source.label).join("|")}`,
+      listMembers: async () => members,
+      listAllergyRecords: async () => [
+        {
+          id: "allergy-penicillin",
+          userId: ctx.userId,
+          memberId: "member-cp",
+          allergen: "青霉素",
+          reaction: "既往使用后出现皮疹",
+          severity: "中等",
+          discoveredAt: "2012-08-10",
+          note: "就医前需要主动告知医生。",
+        },
+      ],
+      listMedicalRecords: async () => medicalRecords,
+      listMedicines: async () => medicines,
+    })
+
+    assert.equal(result.intent, "allergy_history")
+    assert.equal(result.answer, "allergy_history:过敏记录 · 曹鹏 · 青霉素")
+    assert.equal(result.sources[0]?.label, "过敏记录 · 曹鹏 · 青霉素")
+    assert.equal(result.sources[0]?.memberId, "member-cp")
+  })
+
+  it("routes medicine usage questions to the usage flow", async () => {
+    const result = await resolveAssistantQuery(ctx, "布洛芬缓释胶囊怎么吃？", {
+      classifyQuestion: async () => ({
+        intent: "medicine_usage",
+        reason: "用药说明问题应进入用药说明查询",
+      }),
+      selectMedicines: async () => ({ selectedIds: [], summary: "", reason: "" }),
+      summarizeAnswer: async ({ intent, sources }) => `${intent}:${sources.map((source) => source.label).join("|")}`,
+      listMembers: async () => members,
+      listAllergyRecords: async () => [],
+      listMedicalRecords: async () => medicalRecords,
+      listMedicines: async () => medicines,
+    })
+
+    assert.equal(result.intent, "medicine_usage")
+    assert.equal(result.answer, "medicine_usage:用药说明 · 曹鹏 · 布洛芬缓释胶囊")
+    assert.equal(result.sources[0]?.label, "用药说明 · 曹鹏 · 布洛芬缓释胶囊")
+    assert.equal(result.sources[0]?.memberId, "member-cp")
   })
 
   it("routes cough medicine questions to the medicine query flow", async () => {
@@ -80,6 +135,35 @@ describe("assistant service", () => {
     assert.equal(result.intent, "medicine_query")
     assert.equal(result.answer, "medicine_query:1")
     assert.equal(result.sources[0]?.label, "药品 · 双黄连口服液")
+    assert.equal(result.sources[0]?.memberId, "member-child")
+  })
+
+  it("routes visit preparation questions to the preparation flow", async () => {
+    const result = await resolveAssistantQuery(ctx, "下次看医生前要准备什么？", {
+      classifyQuestion: async () => ({
+        intent: "visit_preparation",
+        reason: "就医准备问题",
+      }),
+      selectMedicines: async () => ({ selectedIds: [], summary: "", reason: "" }),
+      summarizeAnswer: async ({ intent, sources }) => `${intent}:${sources[0]?.label ?? "none"}`,
+      listMembers: async () => members,
+      listMedicalRecords: async () => medicalRecords,
+      listMedicines: async () => medicines,
+      listVisitPreparations: async () => [
+        {
+          userId: ctx.userId,
+          memberId: "member-cp",
+          concern: "咳嗽低烧复诊前准备",
+          summary: "需要说明咳嗽持续时间、已使用药品和青霉素疑似过敏史。",
+          questions: ["当前咳嗽是否需要进一步检查？"],
+        },
+      ],
+    })
+
+    assert.equal(result.intent, "visit_preparation")
+    assert.equal(result.answer, "visit_preparation:就医准备 · 曹鹏")
+    assert.equal(result.sources[0]?.label, "就医准备 · 曹鹏")
+    assert.equal(result.sources[0]?.memberId, "member-cp")
   })
 
   it("passes repository context into default data dependencies", async () => {

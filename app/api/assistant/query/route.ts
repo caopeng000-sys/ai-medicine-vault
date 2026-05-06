@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 
 import type { RepositoryContext } from "@/features/medicine-vault/auth-context"
 import { requireCurrentUser } from "@/features/medicine-vault/auth-context"
-import { errorResponse, rateLimitError } from "@/features/medicine-vault/api-errors"
+import { errorResponse, isInvalidJsonError, rateLimitError } from "@/features/medicine-vault/api-errors"
 import { resolveAssistantQuery, type AssistantQueryResponse } from "@/features/medicine-vault/assistant-service"
 import { logAiCall, type AiCallLogInput } from "@/features/medicine-vault/repository"
 import { assistantQueryRateLimiter, type MemoryRateLimiter } from "@/features/medicine-vault/rate-limit"
@@ -38,14 +38,12 @@ export function createAssistantQueryHandler(
       question = body.question?.trim() ?? ""
 
       if (!question) {
-        return validationErrorResponse(
-          {
-            intent: "unsupported",
-            answer: "",
-            message: "请输入一个问题后再发送。",
-            sources: [],
-          },
-        )
+        return validationErrorResponse({
+          intent: "unsupported",
+          answer: "",
+          message: "请输入一个问题后再发送。",
+          sources: [],
+        })
       }
 
       if (question.length > MAX_QUESTION_LENGTH) {
@@ -83,6 +81,15 @@ export function createAssistantQueryHandler(
 
       return NextResponse.json(result)
     } catch (error) {
+      if (isInvalidJsonError(error)) {
+        return validationErrorResponse({
+          intent: "unsupported",
+          answer: "",
+          message: "请求参数格式不正确。",
+          sources: [],
+        })
+      }
+
       if (!ctx) {
         return errorResponse(error, "助手查询失败。")
       }

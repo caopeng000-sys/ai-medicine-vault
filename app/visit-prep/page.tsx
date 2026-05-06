@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { requireCurrentUser } from "@/features/medicine-vault/auth-context"
+import type { AllergyRecord, MedicalRecord, Medicine, Member, VisitPreparation } from "@/features/medicine-vault/data"
 import {
   listAllergyRecords,
   listMedicalRecords,
@@ -14,7 +15,82 @@ import {
 
 export const dynamic = "force-dynamic"
 
-export default async function VisitPreparationPage() {
+type VisitPreparationCard = Readonly<{
+  item: VisitPreparation
+  relatedMember?: Member
+  relatedRecords: MedicalRecord[]
+  relatedMedicines: Medicine[]
+  relatedAllergies: AllergyRecord[]
+}>
+
+export type VisitPreparationPageModel = Readonly<{
+  activeMember?: Member
+  activePreparation?: VisitPreparation
+  preparationCards: VisitPreparationCard[]
+  records: MedicalRecord[]
+  memberMedicines: Medicine[]
+  memberAllergies: AllergyRecord[]
+}>
+
+type VisitPreparationPageInput = Readonly<{
+  memberId?: string
+  members: Member[]
+  visitPreparations: VisitPreparation[]
+  medicalRecords: MedicalRecord[]
+  medicines: Medicine[]
+  allergies: AllergyRecord[]
+}>
+
+export function buildVisitPreparationPageModel({
+  memberId,
+  members,
+  visitPreparations,
+  medicalRecords,
+  medicines,
+  allergies,
+}: VisitPreparationPageInput): VisitPreparationPageModel {
+  const requestedMember = memberId ? members.find((item) => item.id === memberId) : undefined
+  const defaultPreparation = visitPreparations[0]
+  const defaultMember = members.find((item) => item.id === defaultPreparation?.memberId) ?? members[0]
+  const activeMember = requestedMember ?? defaultMember
+  const visiblePreparations = requestedMember ? visitPreparations.filter((item) => item.memberId === requestedMember.id) : visitPreparations
+  const activePreparation = requestedMember ? visiblePreparations[0] : defaultPreparation
+
+  const preparationCards = visiblePreparations.map((item) => {
+    const relatedMember = members.find((member) => member.id === item.memberId)
+    const relatedRecords = relatedMember ? medicalRecords.filter((record) => record.memberId === relatedMember.id) : []
+    const relatedMedicines = relatedMember ? medicines.filter((medicine) => medicine.memberId === relatedMember.id) : []
+    const relatedAllergies = relatedMember ? allergies.filter((record) => record.memberId === relatedMember.id) : []
+
+    return {
+      item,
+      relatedMember,
+      relatedRecords,
+      relatedMedicines,
+      relatedAllergies,
+    }
+  })
+
+  const records = activeMember ? medicalRecords.filter((record) => record.memberId === activeMember.id) : []
+  const memberMedicines = activeMember ? medicines.filter((item) => item.memberId === activeMember.id) : []
+  const memberAllergies = activeMember ? allergies.filter((item) => item.memberId === activeMember.id) : []
+
+  return {
+    activeMember,
+    activePreparation,
+    preparationCards,
+    records,
+    memberMedicines,
+    memberAllergies,
+  }
+}
+
+export default async function VisitPreparationPage({
+  searchParams,
+}: Readonly<{
+  searchParams: Promise<{ memberId?: string }>
+}>) {
+  const { memberId } = await searchParams
   const ctx = await requireCurrentUser()
   const [members, visitPreparations, medicalRecords, medicines, allergies] = await Promise.all([
     listMembers(ctx),
@@ -23,11 +99,16 @@ export default async function VisitPreparationPage() {
     listMedicines(ctx),
     listAllergyRecords(ctx),
   ])
-  const preparation = visitPreparations[0]
-  const member = members.find((item) => item.id === preparation?.memberId) ?? members[0]
-  const records = member ? medicalRecords.filter((record) => record.memberId === member.id) : []
-  const memberMedicines = member ? medicines.filter((item) => item.memberId === member.id) : []
-  const memberAllergies = member ? allergies.filter((item) => item.memberId === member.id) : []
+  const { activePreparation, activeMember, preparationCards, records, memberMedicines, memberAllergies } =
+    buildVisitPreparationPageModel({
+      memberId,
+      members,
+      visitPreparations,
+      medicalRecords,
+      medicines,
+      allergies,
+    })
+  const member = activeMember
 
   return (
     <div className="grid gap-6">
@@ -38,11 +119,11 @@ export default async function VisitPreparationPage() {
               <div className="flex flex-wrap items-center gap-3">
                 <h1 className="text-3xl font-semibold tracking-normal text-slate-950">就医准备清单</h1>
                 <Badge className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-600 hover:bg-emerald-50">
-                  模拟生成
+                  基于资料生成
                 </Badge>
               </div>
               <p className="max-w-3xl text-sm leading-6 text-slate-500">
-                把病历、近期用药和过敏信息整理成就医前可读清单。当前版本为 mock 数据生成。
+                把病历、近期用药和过敏信息整理成就医前可读清单。当前页面直接基于家庭资料生成，适合就诊前快速过一遍。
               </p>
             </div>
 
@@ -116,22 +197,22 @@ export default async function VisitPreparationPage() {
               <div>
                 <p className="inline-flex items-center gap-2 text-sm font-medium text-emerald-600">
                   <ClipboardListIcon className="size-4" aria-hidden="true" />
-                  模拟生成
+                  当前准备清单
                 </p>
-                <p className="mt-2 text-2xl font-semibold text-slate-950">{preparation?.concern ?? "尚未生成就医准备清单"}</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-950">{activePreparation?.concern ?? "尚未生成就医准备清单"}</p>
               </div>
 
               <section className="rounded-[22px] border border-slate-100 bg-slate-50/70 p-4">
                 <p className="font-medium text-slate-700">摘要</p>
                 <p className="mt-3 text-slate-600">
-                  {preparation?.summary ?? "接入真实数据后，这里会生成基于病历、药品和过敏信息的就医前摘要。"}
+                  {activePreparation?.summary ?? "接入真实数据后，这里会生成基于病历、药品和过敏信息的就医前摘要。"}
                 </p>
               </section>
 
               <section className="rounded-[22px] border border-slate-100 bg-slate-50/70 p-4">
                 <p className="font-medium text-slate-700">建议咨询医生或药师的问题</p>
                 <ul className="mt-3 grid gap-2">
-                  {(preparation?.questions ?? ["当前还没有可生成的问题清单。"]).map((question) => (
+                  {(activePreparation?.questions ?? ["当前还没有可生成的问题清单。"]).map((question) => (
                     <li className="rounded-2xl bg-white px-3 py-3 text-slate-600" key={question}>
                       {question}
                     </li>
@@ -147,6 +228,72 @@ export default async function VisitPreparationPage() {
               </div>
             </CardContent>
           </Card>
+        </section>
+
+        <section className="grid gap-4">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-slate-500">成员准备卡</p>
+              <p className="mt-1 text-xl font-semibold text-slate-950">按成员查看就医准备资料</p>
+            </div>
+            <Badge className="rounded-full bg-slate-100 px-3 py-1 text-slate-600 hover:bg-slate-100">
+              {preparationCards.length} 条清单
+            </Badge>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            {preparationCards.length ? (
+              preparationCards.map(({ item, relatedMember, relatedRecords, relatedMedicines, relatedAllergies }) => (
+                <Card className="rounded-[26px] border-slate-100 bg-white shadow-[0_16px_60px_rgba(15,23,42,0.05)]" key={item.memberId}>
+                  <CardContent className="grid gap-4 p-5">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium text-slate-500">{relatedMember?.relationship ?? "成员"}</p>
+                        <p className="mt-1 text-xl font-semibold text-slate-950">{relatedMember?.name ?? "未知成员"}</p>
+                      </div>
+                      <Badge className="rounded-full px-3 py-1" variant="secondary">
+                        {item.concern}
+                      </Badge>
+                    </div>
+
+                    <p className="text-sm leading-6 text-slate-600">{item.summary}</p>
+
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-[18px] border border-slate-100 bg-slate-50/70 p-3">
+                        <p className="text-xs font-medium text-slate-500">病历</p>
+                        <p className="mt-2 text-sm font-semibold text-slate-900">{relatedRecords.length} 条</p>
+                      </div>
+                      <div className="rounded-[18px] border border-slate-100 bg-slate-50/70 p-3">
+                        <p className="text-xs font-medium text-slate-500">药品</p>
+                        <p className="mt-2 text-sm font-semibold text-slate-900">{relatedMedicines.length} 条</p>
+                      </div>
+                      <div className="rounded-[18px] border border-slate-100 bg-slate-50/70 p-3">
+                        <p className="text-xs font-medium text-slate-500">过敏</p>
+                        <p className="mt-2 text-sm font-semibold text-slate-900">{relatedAllergies.length} 条</p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-[22px] border border-slate-100 bg-slate-50/70 p-4">
+                      <p className="text-sm font-medium text-slate-700">问诊重点</p>
+                      <ul className="mt-3 grid gap-2">
+                        {item.questions.map((question) => (
+                          <li className="rounded-2xl bg-white px-3 py-3 text-sm text-slate-600" key={question}>
+                            {question}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <Card className="rounded-[26px] border-slate-100 bg-white shadow-[0_16px_60px_rgba(15,23,42,0.05)] lg:col-span-2">
+                <CardContent className="p-5 text-sm leading-6 text-slate-600">
+                  还没有就医准备清单。先录入病历、药品和过敏记录，系统就能开始整理。
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </section>
       </section>
     </div>

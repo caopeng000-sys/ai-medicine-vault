@@ -16,12 +16,14 @@ import Link from "next/link"
 
 import { MedicineEntryDialog } from "@/components/medicine-vault/medicine-entry-dialog"
 import { MedicineDeleteButton } from "@/components/medicine-vault/medicine-delete-button"
+import { MedicineReminderPanel } from "@/components/medicine-vault/medicine-reminder-panel"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { requireCurrentUser } from "@/features/medicine-vault/auth-context"
 import { getMedicineStatus, parseMedicineQuantity } from "@/features/medicine-vault/data"
+import { buildMedicineReminderSummary } from "@/features/medicine-vault/medicine-reminders"
 import {
   DEFAULT_MEDICINE_PAGE_SIZE,
   listMembers,
@@ -64,15 +66,7 @@ export default async function MedicinesPage({
     const quantity = parseMedicineQuantity(item.quantity)
     return total + (quantity ?? 0)
   }, 0)
-  const lowStockCount = allMedicines.filter((item) => {
-    const status = getMedicineStatus(item.expiresAt, item.quantity)
-    return status.label === "库存不足"
-  }).length
-  const expiringSoonCount = allMedicines.filter((item) => {
-    const status = getMedicineStatus(item.expiresAt, item.quantity)
-    return status.daysLeft >= 0 && status.daysLeft <= 60
-  }).length
-  const expiredCount = allMedicines.filter((item) => getMedicineStatus(item.expiresAt, item.quantity).daysLeft < 0).length
+  const reminderSummary = buildMedicineReminderSummary(allMedicines, members)
 
   function buildMedicinesHref(nextPage: number) {
     const params = new URLSearchParams()
@@ -133,7 +127,7 @@ export default async function MedicinesPage({
                 <Clock3Icon className="size-4 text-slate-500" aria-hidden="true" />
                 即将过期
               </p>
-              <p className="mt-3 text-2xl font-semibold text-slate-950">{expiringSoonCount}</p>
+              <p className="mt-3 text-2xl font-semibold text-slate-950">{reminderSummary.expiringSoonCount}</p>
               <p className="mt-1 text-sm leading-6 text-slate-500">建议优先检查存放位置和下次复诊是否仍需保留。</p>
             </div>
 
@@ -142,7 +136,7 @@ export default async function MedicinesPage({
                 <TriangleAlertIcon className="size-4 text-slate-500" aria-hidden="true" />
                 已过期
               </p>
-              <p className="mt-3 text-2xl font-semibold text-slate-950">{expiredCount}</p>
+              <p className="mt-3 text-2xl font-semibold text-slate-950">{reminderSummary.expiredCount}</p>
               <p className="mt-1 text-sm leading-6 text-slate-500">过期药品应尽快处理，不继续作为家庭备药保留。</p>
             </div>
 
@@ -151,9 +145,13 @@ export default async function MedicinesPage({
                 <ShieldAlertIcon className="size-4 text-slate-500" aria-hidden="true" />
                 库存不足
               </p>
-              <p className="mt-3 text-2xl font-semibold text-slate-950">{lowStockCount}</p>
+              <p className="mt-3 text-2xl font-semibold text-slate-950">{reminderSummary.lowStockCount}</p>
               <p className="mt-1 text-sm leading-6 text-slate-500">库存过少的药品，后续补充时优先查看。 </p>
             </div>
+          </div>
+
+          <div className="mt-5">
+            <MedicineReminderPanel summary={reminderSummary} />
           </div>
 
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">

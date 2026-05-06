@@ -53,12 +53,12 @@ export async function VaultPreview({ ctx }: Readonly<{ ctx: RepositoryContext }>
     <div className="grid gap-4">
       <Card className="rounded-[26px] border-slate-100 bg-white shadow-[0_16px_60px_rgba(15,23,42,0.06)]">
         <CardContent className="grid gap-5 p-5">
-          <div>
-            <p className="text-sm font-medium text-slate-500">当前查询</p>
-            <p className="mt-1 text-2xl leading-snug font-semibold text-slate-950">
-              {activePreparation?.concern ?? "等待生成就医摘要"}
-            </p>
-          </div>
+            <div>
+              <p className="text-sm font-medium text-slate-500">当前查询</p>
+              <p className="mt-1 text-2xl leading-snug font-semibold text-slate-950">
+                {activePreparation?.concern ?? "等待生成就医摘要"}
+              </p>
+            </div>
           <p className="text-sm leading-7 text-muted-foreground">
             {activePreparation?.summary ?? "接入真实数据后，这里会显示按成员聚合出的就医前摘要。"}
           </p>
@@ -97,7 +97,7 @@ export async function VaultPreview({ ctx }: Readonly<{ ctx: RepositoryContext }>
           </CardContent>
         </Card>
 
-        <Card className="rounded-[26px] border-slate-100 bg-white shadow-[0_16px_60px_rgba(15,23,42,0.06)]">
+          <Card className="rounded-[26px] border-slate-100 bg-white shadow-[0_16px_60px_rgba(15,23,42,0.06)]">
           <CardContent className="grid gap-4 p-5">
             <div>
               <p className="text-sm font-medium text-slate-500">历史资料</p>
@@ -125,6 +125,39 @@ export async function VaultPreview({ ctx }: Readonly<{ ctx: RepositoryContext }>
           </CardContent>
         </Card>
       </div>
+
+      <Card className="rounded-[26px] border-slate-100 bg-white shadow-[0_16px_60px_rgba(15,23,42,0.06)]">
+        <CardContent className="grid gap-4 p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-slate-500">就医准备</p>
+              <p className="mt-1 text-xl font-semibold text-slate-950">成员清单</p>
+            </div>
+            <Badge className="rounded-full px-3 py-1" variant="secondary">
+              {visitPreparations.length} 条
+            </Badge>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-2">
+            {visitPreparations.map((item) => {
+              const member = members.find((memberItem) => memberItem.id === item.memberId)
+              return (
+                <div className="rounded-[22px] border border-slate-100 bg-slate-50/70 p-4" key={item.memberId}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-slate-500">{member?.relationship ?? "成员"}</p>
+                      <p className="mt-1 text-lg font-semibold text-slate-950">{member?.name ?? "未知成员"}</p>
+                    </div>
+                    <Badge className="rounded-full px-3 py-1" variant="outline">
+                      {item.concern}
+                    </Badge>
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-slate-600">{item.summary}</p>
+                </div>
+              )
+            })}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

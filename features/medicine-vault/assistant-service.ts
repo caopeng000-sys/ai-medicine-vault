@@ -1,11 +1,14 @@
-import type { MedicalRecord, Medicine, Member } from "./data"
+import type { AllergyRecord, MedicalRecord, Medicine, Member, VisitPreparation } from "./data"
 import { createDashscopeChatCompletion } from "@/lib/ai/dashscope"
 
 import type { RepositoryContext } from "./auth-context"
-import { listMedicalRecords, listMedicines, listMembers } from "./repository"
+import { listAllergyRecords, listMedicalRecords, listMedicines, listMembers, listVisitPreparations } from "./repository"
 import {
   detectAssistantIntent,
+  findAllergyHistory,
   findRecentColdRecord,
+  findMedicineUsageGuidance,
+  findVisitPreparation,
   parseAssistantIntent,
   type AssistantIntent,
 } from "./assistant-routing"
@@ -13,6 +16,7 @@ import {
 export type AssistantSource = Readonly<{
   label: string
   detail: string
+  memberId?: string
 }>
 
 export type AssistantQueryResponse = Readonly<{
@@ -47,11 +51,14 @@ type AssistantDependencies = Readonly<{
     context: string
   }) => Promise<string>
   listMembers: (ctx: RepositoryContext) => Promise<Member[]>
+  listAllergyRecords: (ctx: RepositoryContext) => Promise<AllergyRecord[]>
   listMedicalRecords: (ctx: RepositoryContext) => Promise<MedicalRecord[]>
   listMedicines: (ctx: RepositoryContext) => Promise<Medicine[]>
+  listVisitPreparations: (ctx: RepositoryContext) => Promise<VisitPreparation[]>
 }>
 
-const UNSUPPORTED_MESSAGE = "这类问题我现在还不支持。你可以问我上次什么时候感冒，或者家里有哪些抗过敏药。"
+const UNSUPPORTED_MESSAGE =
+  "这类问题我现在还不支持。你可以问我上次什么时候感冒、我之前对哪些药有过不适、布洛芬怎么吃、家里有哪些抗过敏药，或者下次看医生前要准备什么。"
 const NO_RESULT_MESSAGE = "我找到了这个问题对应的方向，但暂时没有查到可用记录。"
 
 function buildSourceDetail(title: string, detail: string) {
@@ -93,9 +100,24 @@ function fallbackAnswer(intent: AssistantIntent, sources: AssistantSource[]) {
     return `你上次感冒相关的记录是：${source.detail}。`
   }
 
+  if (intent === "allergy_history") {
+    if (sources.length === 0) return NO_RESULT_MESSAGE
+    return `我查到这些过敏或不良反应记录：${sources.map((item) => item.label).join("、")}。`
+  }
+
+  if (intent === "medicine_usage") {
+    if (sources.length === 0) return NO_RESULT_MESSAGE
+    return `我整理到这些用药说明：${sources.map((item) => item.label).join("、")}。`
+  }
+
   if (intent === "medicine_query") {
     if (sources.length === 0) return NO_RESULT_MESSAGE
     return `家里现有的相关药品包括：${sources.map((item) => item.label).join("、")}。`
+  }
+
+  if (intent === "visit_preparation") {
+    if (sources.length === 0) return NO_RESULT_MESSAGE
+    return `这份就医准备清单可以先参考：${sources[0]?.detail ?? "暂无摘要"}.`
   }
 
   return NO_RESULT_MESSAGE
@@ -168,9 +190,12 @@ async function defaultClassifyQuestion(question: string): Promise<AssistantClass
           content: [
             "你是一个家庭健康资料助手的意图识别器。",
             "只允许返回 JSON。",
-            '可选 intent 只有三个：recent_cold_record, medicine_query, unsupported。',
+            '可选 intent 只有六个：recent_cold_record, allergy_history, medicine_usage, medicine_query, visit_preparation, unsupported。',
             '如果问题在问“上次什么时候感冒 / 上次感冒 / 最近感冒记录”，返回 recent_cold_record。',
+            '如果问题在问“我之前对哪些药有过不适 / 药物过敏史 / 过敏反应 / 不良反应”，返回 allergy_history。',
+            '如果问题在问“布洛芬怎么吃 / 服用方法 / 饭前饭后 / 注意事项 / 用法用量”，返回 medicine_usage。',
             '如果问题在问任何家庭药品相关问题，例如“家里有哪些抗咳嗽药 / 抗过敏药 / 退烧药 / 感冒药 / 止痛药”，返回 medicine_query。',
+            '如果问题在问“下次看医生要准备什么 / 复诊要带什么 / 就医前准备什么”，返回 visit_preparation。',
             "其他问题返回 unsupported。",
             '返回格式示例：{"intent":"recent_cold_record","reason":"命中了感冒记录意图"}',
           ].join("\n"),
@@ -280,8 +305,10 @@ const defaultDependencies: AssistantDependencies = {
   selectMedicines: defaultSelectMedicines,
   summarizeAnswer: defaultSummarizeAnswer,
   listMembers,
+  listAllergyRecords,
   listMedicalRecords,
   listMedicines,
+  listVisitPreparations,
 }
 
 export async function resolveAssistantQuery(
@@ -331,8 +358,92 @@ export async function resolveAssistantQuery(
       {
         label: `病历 · ${match.member?.name ?? "未知成员"}`,
         detail: buildSourceDetail(match.record.visitedAt, `${match.record.diagnosis} / ${match.record.symptoms}`),
+        memberId: match.record.memberId,
       },
     ]
+
+    try {
+      const answer = await runtime.summarizeAnswer({
+        question: normalizedQuestion,
+        intent: classification.intent,
+        sources,
+        context: buildContext(classification.intent, sources),
+      })
+
+      return {
+        intent: classification.intent,
+        answer: answer || fallbackAnswer(classification.intent, sources),
+        sources,
+      }
+    } catch {
+      return {
+        intent: classification.intent,
+        answer: fallbackAnswer(classification.intent, sources),
+        sources,
+      }
+    }
+  }
+
+  if (classification.intent === "allergy_history") {
+    const [members, allergyRecords] = await Promise.all([runtime.listMembers(ctx), runtime.listAllergyRecords(ctx)])
+    const matches = findAllergyHistory(allergyRecords, members, normalizedQuestion)
+
+    if (!matches.length) {
+      return {
+        intent: classification.intent,
+        answer: NO_RESULT_MESSAGE,
+        sources: [],
+      }
+    }
+
+    const sources: AssistantSource[] = matches.map((match) => ({
+      label: `过敏记录 · ${match.member?.name ?? "未知成员"} · ${match.record.allergen}`,
+      detail: buildSourceDetail(match.record.severity, `${match.record.reaction} / ${match.record.note}`),
+      memberId: match.record.memberId,
+    }))
+
+    try {
+      const answer = await runtime.summarizeAnswer({
+        question: normalizedQuestion,
+        intent: classification.intent,
+        sources,
+        context: buildContext(classification.intent, sources),
+      })
+
+      return {
+        intent: classification.intent,
+        answer: answer || fallbackAnswer(classification.intent, sources),
+        sources,
+      }
+    } catch {
+      return {
+        intent: classification.intent,
+        answer: fallbackAnswer(classification.intent, sources),
+        sources,
+      }
+    }
+  }
+
+  if (classification.intent === "medicine_usage") {
+    const [members, medicines] = await Promise.all([runtime.listMembers(ctx), runtime.listMedicines(ctx)])
+    const matches = findMedicineUsageGuidance(medicines, members, normalizedQuestion)
+
+    if (!matches.length) {
+      return {
+        intent: classification.intent,
+        answer: NO_RESULT_MESSAGE,
+        sources: [],
+      }
+    }
+
+    const sources: AssistantSource[] = matches.map((match) => ({
+      label: `用药说明 · ${match.member?.name ?? "未知成员"} · ${match.medicine.name}`,
+      detail: buildSourceDetail(
+        match.medicine.category,
+        `${match.medicine.dosage} · ${match.medicine.instructions} · ${match.medicine.usageNote} · ${match.medicine.safetyNote}`,
+      ),
+      memberId: match.medicine.memberId,
+    }))
 
     try {
       const answer = await runtime.summarizeAnswer({
@@ -376,6 +487,7 @@ export async function resolveAssistantQuery(
         medicine.category,
         `${members.find((item) => item.id === medicine.memberId)?.name ?? "未知成员"} · ${medicine.purpose} · ${medicine.instructions}`,
       ),
+      memberId: medicine.memberId,
     }))
 
     try {
@@ -395,6 +507,48 @@ export async function resolveAssistantQuery(
       return {
         intent: classification.intent,
         answer: selection.summary || fallbackAnswer(classification.intent, sources),
+        sources,
+      }
+    }
+  }
+
+  if (classification.intent === "visit_preparation") {
+    const [members, preparations] = await Promise.all([runtime.listMembers(ctx), runtime.listVisitPreparations(ctx)])
+    const match = findVisitPreparation(preparations, members, normalizedQuestion)
+
+    if (!match) {
+      return {
+        intent: classification.intent,
+        answer: NO_RESULT_MESSAGE,
+        sources: [],
+      }
+    }
+
+    const sources: AssistantSource[] = [
+      {
+        label: `就医准备 · ${match.member?.name ?? "未知成员"}`,
+        detail: buildSourceDetail(match.visitPreparation.concern, match.visitPreparation.summary),
+        memberId: match.visitPreparation.memberId,
+      },
+    ]
+
+    try {
+      const answer = await runtime.summarizeAnswer({
+        question: normalizedQuestion,
+        intent: classification.intent,
+        sources,
+        context: buildContext(classification.intent, sources),
+      })
+
+      return {
+        intent: classification.intent,
+        answer: answer || fallbackAnswer(classification.intent, sources),
+        sources,
+      }
+    } catch {
+      return {
+        intent: classification.intent,
+        answer: fallbackAnswer(classification.intent, sources),
         sources,
       }
     }

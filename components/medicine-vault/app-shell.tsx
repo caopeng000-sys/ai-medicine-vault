@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  ArrowUpRightIcon,
   BellIcon,
   BotIcon,
   ChevronDownIcon,
@@ -21,6 +22,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type { ReactNode } from "react"
 
+import { ExperienceLinks } from "@/components/medicine-vault/experience-links"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -46,6 +48,7 @@ const utilityNavigation = [
 
 export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
   const pathname = usePathname()
+  const onLoginPage = pathname === "/login"
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f8fcfd_0%,#eef7f8_52%,#f7fbfb_100%)]">
@@ -149,12 +152,16 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
         <div className="min-w-0">
           <header className="sticky top-0 z-20 border-b border-white/70 bg-white/76 px-5 py-4 backdrop-blur md:px-8 lg:px-10">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                <SearchIcon className="size-4 text-slate-400" aria-hidden="true" />
-                <Input
-                  className="border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
-                  placeholder="搜索药品、病历、成员或就医问题..."
-                />
+              <div className="grid min-w-0 flex-1 gap-3">
+                <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                  <SearchIcon className="size-4 text-slate-400" aria-hidden="true" />
+                  <Input
+                    className="border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+                    placeholder="搜索药品、病历、成员或就医问题..."
+                  />
+                </div>
+
+                <ExperienceLinks />
               </div>
 
               <div className="flex items-center justify-between gap-3">
@@ -167,16 +174,26 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
                   </Button>
                 </div>
 
-                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                <Link
+                  className={cn(
+                    "flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm transition-colors",
+                    onLoginPage ? "border-emerald-200 bg-emerald-50/80" : "hover:bg-slate-50",
+                  )}
+                  href="/login"
+                >
                   <span className="flex size-10 items-center justify-center rounded-full bg-gradient-to-br from-slate-900 to-slate-700 text-sm font-semibold text-white">
-                    CP
+                    {onLoginPage ? "ID" : "CP"}
                   </span>
                   <div className="hidden sm:block">
-                    <p className="text-sm font-medium text-slate-900">曹鹏</p>
-                    <p className="text-xs text-slate-500">产品原型负责人</p>
+                    <p className="text-sm font-medium text-slate-900">{onLoginPage ? "登录与会话" : "开发体验账号"}</p>
+                    <p className="text-xs text-slate-500">{onLoginPage ? "查看 provider 配置说明" : "管理登录、导出与隐私"}</p>
                   </div>
-                  <ChevronDownIcon className="size-4 text-slate-400" aria-hidden="true" />
-                </div>
+                  {onLoginPage ? (
+                    <ChevronDownIcon className="size-4 text-emerald-500" aria-hidden="true" />
+                  ) : (
+                    <ArrowUpRightIcon className="size-4 text-slate-400" aria-hidden="true" />
+                  )}
+                </Link>
               </div>
             </div>
           </header>

@@ -5,13 +5,25 @@ export type ApiErrorBody = Readonly<{
   message: string
 }>
 
-const UNAUTHORIZED_MARKERS = ["登录", "拒绝访问", "unauthorized", "authentication"]
+const UNAUTHORIZED_MARKERS = ["登录", "未登录", "拒绝访问", "unauthorized", "unauthenticated", "authentication"]
+const INVALID_JSON_MARKERS = ["json", "unexpected token", "unexpected end of json input"]
 
 export function isUnauthorizedError(error: unknown) {
   if (!(error instanceof Error)) return false
 
   const message = error.message.toLowerCase()
   return UNAUTHORIZED_MARKERS.some((marker) => message.includes(marker.toLowerCase()))
+}
+
+export function isInvalidJsonError(error: unknown) {
+  if (!(error instanceof Error)) return false
+
+  if (error instanceof SyntaxError) {
+    return true
+  }
+
+  const message = error.message.toLowerCase()
+  return INVALID_JSON_MARKERS.some((marker) => message.includes(marker))
 }
 
 export function validationError(message: string, init?: ResponseInit) {
@@ -45,6 +57,10 @@ export function internalError(message = "服务暂时不可用，请稍后再试
 export function errorResponse(error: unknown, fallbackMessage: string) {
   if (isUnauthorizedError(error)) {
     return unauthorizedError()
+  }
+
+  if (isInvalidJsonError(error)) {
+    return validationError("请求参数格式不正确。")
   }
 
   if (error instanceof ZodError) {

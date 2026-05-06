@@ -6,6 +6,9 @@ node_modules/
 out/
 tsconfig.tsbuildinfo
 .playwright-cli/
+playwright-report/
+test-results/
+.tmp/
 
 # production
 build/

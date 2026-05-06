@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import Link from "next/link"
 import {
   ArrowUpRightIcon,
   BotIcon,
@@ -23,13 +24,21 @@ const suggestedQuestions = [
   "我上次什么时候感冒？",
   "家里有哪些抗过敏药？",
   "我之前对哪些药有过不适？",
+  "布洛芬缓释胶囊怎么吃？",
   "下次看医生前应该准备哪些问题？",
 ]
 
 const intentLabels: Record<AssistantIntent, string> = {
   recent_cold_record: "感冒记录",
+  allergy_history: "过敏记录",
+  medicine_usage: "用药说明",
   medicine_query: "药品查询",
+  visit_preparation: "就医准备",
   unsupported: "未支持",
+}
+
+function buildVisitPreparationHref(memberId?: string) {
+  return memberId ? `/visit-prep?memberId=${encodeURIComponent(memberId)}` : ""
 }
 
 export function AssistantPanel() {
@@ -40,6 +49,8 @@ export function AssistantPanel() {
 
   const sourceCount = result?.sources.length ?? 0
   const resultIntentLabel = result ? intentLabels[result.intent] : "等待提问"
+  const visitPreparationHref =
+    result?.intent === "visit_preparation" ? buildVisitPreparationHref(result.sources[0]?.memberId) : ""
   const canSubmit = useMemo(() => question.trim().length > 0 && !loading, [loading, question])
 
   async function submitQuestion(nextQuestion = question) {
@@ -109,8 +120,8 @@ export function AssistantPanel() {
                 <MessageSquareTextIcon className="size-4 text-violet-500" aria-hidden="true" />
                 支持意图
               </p>
-              <p className="mt-3 text-3xl font-semibold text-slate-950">2</p>
-              <p className="mt-1 text-sm text-slate-500">当前只保留两个固定意图，回答稳定且带来源。</p>
+              <p className="mt-3 text-3xl font-semibold text-slate-950">5</p>
+              <p className="mt-1 text-sm text-slate-500">当前保留五个固定意图，回答稳定且带来源。</p>
             </div>
 
             <div className="rounded-2xl border border-emerald-100 bg-emerald-50/85 p-4">
@@ -208,9 +219,24 @@ export function AssistantPanel() {
                     {result ? result.answer || "我暂时还没法回答这个问题。" : "等待你的问题"}
                   </p>
                 </div>
-                <Badge className="rounded-full bg-slate-100 px-3 py-1 text-slate-600 hover:bg-slate-100">
-                  {resultIntentLabel}
-                </Badge>
+                <div className="flex flex-col items-start gap-2 lg:items-end">
+                  <Badge className="rounded-full bg-slate-100 px-3 py-1 text-slate-600 hover:bg-slate-100">
+                    {resultIntentLabel}
+                  </Badge>
+                  {visitPreparationHref ? (
+                    <Button
+                      asChild
+                      className="rounded-2xl border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                      size="sm"
+                      variant="outline"
+                    >
+                      <Link href={visitPreparationHref}>
+                        <ArrowUpRightIcon className="size-4" aria-hidden="true" />
+                        打开就医准备页
+                      </Link>
+                    </Button>
+                  ) : null}
+                </div>
               </div>
 
               {result?.message ? (
@@ -268,7 +294,7 @@ export function AssistantPanel() {
               <div className="flex items-start gap-3 rounded-[22px] border border-emerald-100 bg-emerald-50/70 p-4">
                 <ShieldCheckIcon className="mt-0.5 size-4 text-emerald-600" aria-hidden="true" />
                 <p className="text-sm leading-6 text-slate-600">
-                  当前只回答两类问题：感冒记录和抗过敏药。我们先把这两个意图打稳，再往外扩。
+                  当前支持感冒记录、过敏记录、用药说明、药品查询和就医准备五个意图。我们先把这五类打稳，再往外扩。
                 </p>
               </div>
             </CardContent>
