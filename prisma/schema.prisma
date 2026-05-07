@@ -124,6 +124,13 @@ model MedicalRecordAttachment {
   mimeType  String
   kind      String   @default("检查报告")
   note      String   @default("")
+  aiDocumentType String @default("")
+  aiSummary String @default("")
+  aiKeyFindings String[]
+  aiSuggestedFollowUp String @default("")
+  aiOriginalText String @default("")
+  aiWarnings String[]
+  aiExtractedAt DateTime?
   createdAt DateTime @default(now())
   record    MedicalRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)

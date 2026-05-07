@@ -334,6 +334,20 @@ export default async function RecordsPage({
                                 <span className="mt-1 block text-xs leading-5 text-slate-500">
                                   {attachment.note || "暂无备注"} · {attachment.createdAt}
                                 </span>
+                                {attachment.aiSummary ? (
+                                  <span className="mt-3 block rounded-xl border border-sky-100 bg-sky-50/70 p-3 text-xs leading-5 text-slate-600">
+                                    <span className="font-semibold text-sky-700">
+                                      AI 摘要{attachment.aiDocumentType ? ` · ${attachment.aiDocumentType}` : ""}
+                                    </span>
+                                    <span className="mt-1 block">{attachment.aiSummary}</span>
+                                    {attachment.aiKeyFindings?.length ? (
+                                      <span className="mt-1 block">重点：{attachment.aiKeyFindings.join("；")}</span>
+                                    ) : null}
+                                    {attachment.aiSuggestedFollowUp ? (
+                                      <span className="mt-1 block">后续：{attachment.aiSuggestedFollowUp}</span>
+                                    ) : null}
+                                  </span>
+                                ) : null}
                               </a>
                               <RecordAttachmentDeleteButton
                                 attachmentId={attachment.id}

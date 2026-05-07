@@ -35,6 +35,13 @@ export type MedicalRecordAttachment = {
   mimeType: string
   kind: string
   note: string
+  aiDocumentType?: string
+  aiSummary?: string
+  aiKeyFindings?: string[]
+  aiSuggestedFollowUp?: string
+  aiOriginalText?: string
+  aiWarnings?: string[]
+  aiExtractedAt?: string
   createdAt: string
 }
 

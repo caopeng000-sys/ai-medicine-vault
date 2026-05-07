@@ -44,6 +44,7 @@ import {
   readMedicalRecordAttachment,
   storeMedicalRecordAttachment,
 } from "@/features/medicine-vault/medical-record-attachment-storage"
+import type { MedicalRecordAttachmentAiMetadata } from "@/features/medicine-vault/medical-record-attachment-ai-metadata"
 
 export type MedicinePageQuery = Readonly<{
   memberId?: string
@@ -77,6 +78,7 @@ export type CreateMedicalRecordAttachmentInput = Readonly<{
   mimeType: string
   kind: string
   note: string
+  aiMetadata?: MedicalRecordAttachmentAiMetadata
 }>
 
 export { DEFAULT_MEDICINE_PAGE_SIZE } from "@/features/medicine-vault/medicine-pagination"
@@ -134,6 +136,13 @@ function mapMedicalRecord(record: {
     mimeType: string
     kind: string
     note: string
+    aiDocumentType: string
+    aiSummary: string
+    aiKeyFindings: string[]
+    aiSuggestedFollowUp: string
+    aiOriginalText: string
+    aiWarnings: string[]
+    aiExtractedAt: Date | null
     createdAt: Date
   }>
 }): MedicalRecord {
@@ -164,6 +173,13 @@ function mapMedicalRecordAttachment(attachment: {
   mimeType: string
   kind: string
   note: string
+  aiDocumentType: string
+  aiSummary: string
+  aiKeyFindings: string[]
+  aiSuggestedFollowUp: string
+  aiOriginalText: string
+  aiWarnings: string[]
+  aiExtractedAt: Date | null
   createdAt: Date
 }): MedicalRecordAttachment {
   return {
@@ -174,6 +190,13 @@ function mapMedicalRecordAttachment(attachment: {
     mimeType: attachment.mimeType,
     kind: attachment.kind,
     note: attachment.note,
+    aiDocumentType: attachment.aiDocumentType,
+    aiSummary: attachment.aiSummary,
+    aiKeyFindings: attachment.aiKeyFindings,
+    aiSuggestedFollowUp: attachment.aiSuggestedFollowUp,
+    aiOriginalText: attachment.aiOriginalText,
+    aiWarnings: attachment.aiWarnings,
+    aiExtractedAt: attachment.aiExtractedAt ? formatDateOnly(attachment.aiExtractedAt) : undefined,
     createdAt: formatDateOnly(attachment.createdAt),
   }
 }
@@ -830,6 +853,13 @@ export async function createMedicalRecordAttachment(
         mimeType: stored.mimeType,
         kind: fallbackText(input.kind, "检查报告"),
         note: fallbackText(input.note, ""),
+        aiDocumentType: input.aiMetadata?.documentType ?? "",
+        aiSummary: input.aiMetadata?.summary ?? "",
+        aiKeyFindings: input.aiMetadata?.keyFindings ?? [],
+        aiSuggestedFollowUp: input.aiMetadata?.suggestedFollowUp ?? "",
+        aiOriginalText: input.aiMetadata?.originalText ?? "",
+        aiWarnings: input.aiMetadata?.warnings ?? [],
+        aiExtractedAt: input.aiMetadata ? new Date() : null,
       },
     })
 

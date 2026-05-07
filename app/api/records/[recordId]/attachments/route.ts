@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { errorResponse, validationError } from "@/features/medicine-vault/api-errors"
 import { requireCurrentUser } from "@/features/medicine-vault/auth-context"
+import { parseMedicalRecordAttachmentAiMetadata } from "@/features/medicine-vault/medical-record-attachment-ai-metadata"
 import { createMedicalRecordAttachment } from "@/features/medicine-vault/repository"
 
 const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024
@@ -48,6 +49,14 @@ export async function POST(request: Request, context: { params: Promise<{ record
       mimeType: file.type,
       kind: normalizeText(formData.get("kind")) || "检查报告",
       note: normalizeText(formData.get("note")),
+      aiMetadata: parseMedicalRecordAttachmentAiMetadata({
+        aiDocumentType: normalizeText(formData.get("aiDocumentType")),
+        aiSummary: normalizeText(formData.get("aiSummary")),
+        aiKeyFindings: normalizeText(formData.get("aiKeyFindings")),
+        aiSuggestedFollowUp: normalizeText(formData.get("aiSuggestedFollowUp")),
+        aiOriginalText: normalizeText(formData.get("aiOriginalText")),
+        aiWarnings: normalizeText(formData.get("aiWarnings")),
+      }),
     })
 
     return NextResponse.json({

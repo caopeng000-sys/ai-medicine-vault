@@ -17,6 +17,10 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  encodeMedicalRecordAttachmentAiMetadata,
+  type MedicalRecordAttachmentAiMetadata,
+} from "@/features/medicine-vault/medical-record-attachment-ai-metadata"
 
 const attachmentKinds = ["检查报告", "处方单", "就诊照片", "其他资料"] as const
 
@@ -31,6 +35,7 @@ export function RecordAttachmentUploadDialog({
   const [kind, setKind] = useState<(typeof attachmentKinds)[number]>("检查报告")
   const [note, setNote] = useState("")
   const [aiSummary, setAiSummary] = useState("")
+  const [aiMetadata, setAiMetadata] = useState<MedicalRecordAttachmentAiMetadata | null>(null)
   const [errorMessage, setErrorMessage] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isExtracting, setIsExtracting] = useState(false)
@@ -39,6 +44,7 @@ export function RecordAttachmentUploadDialog({
     setKind("检查报告")
     setNote("")
     setAiSummary("")
+    setAiMetadata(null)
     setErrorMessage("")
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
@@ -59,6 +65,16 @@ export function RecordAttachmentUploadDialog({
     formData.append("file", file)
     formData.append("kind", kind)
     formData.append("note", note)
+
+    if (aiMetadata) {
+      const encoded = encodeMedicalRecordAttachmentAiMetadata(aiMetadata)
+      formData.append("aiDocumentType", encoded.aiDocumentType)
+      formData.append("aiSummary", encoded.aiSummary)
+      formData.append("aiKeyFindings", encoded.aiKeyFindings)
+      formData.append("aiSuggestedFollowUp", encoded.aiSuggestedFollowUp)
+      formData.append("aiOriginalText", encoded.aiOriginalText)
+      formData.append("aiWarnings", encoded.aiWarnings)
+    }
 
     try {
       setIsSubmitting(true)
@@ -110,6 +126,7 @@ export function RecordAttachmentUploadDialog({
           summary?: string
           keyFindings?: string[]
           suggestedFollowUp?: string
+          originalText?: string
           warnings?: string[]
         }
       }
@@ -119,16 +136,25 @@ export function RecordAttachmentUploadDialog({
       }
 
       const data = result.data
+      const nextMetadata = {
+        documentType: data?.documentType ?? "",
+        summary: data?.summary ?? "",
+        keyFindings: data?.keyFindings ?? [],
+        suggestedFollowUp: data?.suggestedFollowUp ?? "",
+        originalText: data?.originalText ?? "",
+        warnings: data?.warnings ?? [],
+      }
       const nextSummary = [
-        data?.documentType ? `类型：${data.documentType}` : "",
-        data?.summary ? `摘要：${data.summary}` : "",
-        data?.keyFindings?.length ? `重点：${data.keyFindings.join("；")}` : "",
-        data?.suggestedFollowUp ? `后续：${data.suggestedFollowUp}` : "",
-        data?.warnings?.length ? `提醒：${data.warnings.join("；")}` : "",
+        nextMetadata.documentType ? `类型：${nextMetadata.documentType}` : "",
+        nextMetadata.summary ? `摘要：${nextMetadata.summary}` : "",
+        nextMetadata.keyFindings.length ? `重点：${nextMetadata.keyFindings.join("；")}` : "",
+        nextMetadata.suggestedFollowUp ? `后续：${nextMetadata.suggestedFollowUp}` : "",
+        nextMetadata.warnings.length ? `提醒：${nextMetadata.warnings.join("；")}` : "",
       ]
         .filter(Boolean)
         .join("\n")
 
+      setAiMetadata(nextMetadata)
       setAiSummary(nextSummary)
       setNote((current) => [current.trim(), nextSummary].filter(Boolean).join("\n\n"))
     } catch (error) {
