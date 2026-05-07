@@ -7,6 +7,9 @@ export type AssistantIntent =
   | "medicine_usage"
   | "medicine_interaction"
   | "medicine_disposal"
+  | "recent_medicine_history"
+  | "symptom_history"
+  | "medicine_allergy_conflict"
   | "medicine_query"
   | "visit_preparation"
   | "unsupported"
@@ -39,6 +42,26 @@ export type AssistantAllergyMatch = Readonly<{
 export type AssistantVisitPreparationMatch = Readonly<{
   visitPreparation: VisitPreparation
   member?: Member
+}>
+
+export type AssistantRecentMedicineHistoryMatch = Readonly<{
+  record?: MedicalRecord
+  medicine?: Medicine
+  member?: Member
+  reason: string
+}>
+
+export type AssistantSymptomHistoryMatch = Readonly<{
+  record: MedicalRecord
+  member?: Member
+  matchedSymptoms: string[]
+}>
+
+export type AssistantMedicineAllergyConflictMatch = Readonly<{
+  medicine?: Medicine
+  allergy?: AllergyRecord
+  member?: Member
+  riskText: string
 }>
 
 const COLD_KEYWORDS = ["感冒", "上呼吸道感染", "流涕", "鼻塞", "咳嗽", "发热"]
@@ -101,6 +124,21 @@ const MEDICINE_DISPOSAL_KEYWORDS = [
   "临期药",
 ]
 const VISIT_PREPARATION_KEYWORDS = ["复诊", "就医准备", "就诊前", "就医前", "看医生前", "带什么", "准备什么", "检查前"]
+const RECENT_MEDICINE_HISTORY_KEYWORDS = ["最近吃过哪些药", "最近用过哪些药", "最近吃了什么药", "最近用了什么药", "这段时间吃了什么药", "用药记录", "吃药记录"]
+const SYMPTOM_HISTORY_KEYWORDS = ["看过几次", "历史回顾", "之前有没有", "以前有没有", "最近有没有", "就医几次", "病历里有没有"]
+const MEDICINE_ALLERGY_CONFLICT_KEYWORDS = [
+  "过敏史有没有冲突",
+  "和过敏史有没有冲突",
+  "会不会和过敏史冲突",
+  "过敏史冲突",
+  "过敏冲突",
+  "过敏风险",
+  "会不会过敏",
+  "用药前要不要注意过敏",
+  "用药前要不要注意过敏史",
+  "和我的过敏史",
+]
+const COMMON_SYMPTOM_TERMS = ["咳嗽", "鼻塞", "流涕", "发热", "发烧", "低烧", "咽喉", "头晕", "皮疹", "瘙痒", "腹泻", "呕吐", "疼痛", "鼻炎"]
 
 function joinMedicineText(medicine: Medicine) {
   return [
@@ -156,6 +194,9 @@ export function parseAssistantIntent(rawText: string): AssistantIntentParseResul
         parsed.intent === "medicine_usage" ||
         parsed.intent === "medicine_interaction" ||
         parsed.intent === "medicine_disposal" ||
+        parsed.intent === "recent_medicine_history" ||
+        parsed.intent === "symptom_history" ||
+        parsed.intent === "medicine_allergy_conflict" ||
         parsed.intent === "medicine_query" ||
         parsed.intent === "visit_preparation"
           ? parsed.intent
@@ -177,12 +218,31 @@ export function detectAssistantIntent(question: string): AssistantIntent {
     return "unsupported"
   }
 
+  if (MEDICINE_ALLERGY_CONFLICT_KEYWORDS.some((keyword) => normalized.includes(keyword))) {
+    return "medicine_allergy_conflict"
+  }
+
   if (MEDICINE_INTERACTION_KEYWORDS.some((keyword) => normalized.includes(keyword))) {
     return "medicine_interaction"
   }
 
   if (MEDICINE_DISPOSAL_KEYWORDS.some((keyword) => normalized.includes(keyword))) {
     return "medicine_disposal"
+  }
+
+  if (RECENT_MEDICINE_HISTORY_KEYWORDS.some((keyword) => normalized.includes(keyword))) {
+    return "recent_medicine_history"
+  }
+
+  const medicineQuestionKeywords = ["家里有哪些", "有哪些药", "药品", "常备药", "止咳", "抗咳嗽药", "咳嗽药", "抗过敏药", "退烧药", "感冒药", "止痛药"]
+  if (medicineQuestionKeywords.some((keyword) => normalized.includes(keyword))) {
+    return "medicine_query"
+  }
+
+  const hasSymptomHistoryHint = SYMPTOM_HISTORY_KEYWORDS.some((keyword) => normalized.includes(keyword))
+  const hasSymptomTerm = COMMON_SYMPTOM_TERMS.some((keyword) => normalized.includes(keyword))
+  if (hasSymptomHistoryHint && hasSymptomTerm) {
+    return "symptom_history"
   }
 
   const coldQuestionKeywords = ["感冒", "发烧", "发热", "咳嗽", "鼻塞", "流涕", "上呼吸道感染"]
@@ -197,11 +257,6 @@ export function detectAssistantIntent(question: string): AssistantIntent {
 
   if (MEDICINE_USAGE_KEYWORDS.some((keyword) => normalized.includes(keyword))) {
     return "medicine_usage"
-  }
-
-  const medicineQuestionKeywords = ["家里有哪些", "有哪些药", "药品", "常备药", "止咳", "咳嗽", "抗过敏药", "退烧药", "感冒药", "止痛药"]
-  if (medicineQuestionKeywords.some((keyword) => normalized.includes(keyword))) {
-    return "medicine_query"
   }
 
   if (VISIT_PREPARATION_KEYWORDS.some((keyword) => normalized.includes(keyword))) {
@@ -269,6 +324,19 @@ function stripMedicineDisposalKeywords(question: string) {
     .replace(/[？?。！!、,，/·]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
+}
+
+function findTargetMember(question: string, members: Member[]) {
+  const memberByName = members.find((member) => question.includes(member.name))
+  const selfMember = question.includes("我") || question.includes("本人") || question.includes("自己")
+    ? members.find((member) => member.relationship === "本人")
+    : undefined
+
+  return memberByName ?? selfMember
+}
+
+function getQuestionSymptomTerms(question: string) {
+  return COMMON_SYMPTOM_TERMS.filter((term) => question.includes(term))
 }
 
 function medicineNameFragments(medicineName: string) {
@@ -464,6 +532,143 @@ export function findAllergyHistory(
       record,
       member: members.find((item) => item.id === record.memberId),
     }))
+}
+
+export function findRecentMedicineHistory(
+  records: MedicalRecord[],
+  medicines: Medicine[],
+  members: Member[],
+  question: string,
+): AssistantRecentMedicineHistoryMatch[] {
+  const targetMember = findTargetMember(question, members)
+  const scopedRecords = targetMember ? records.filter((record) => record.memberId === targetMember.id) : records
+  const scopedMedicines = targetMember ? medicines.filter((medicine) => medicine.memberId === targetMember.id) : medicines
+  const medicineNames = scopedMedicines.flatMap((medicine) => [medicine.name, ...medicineNameFragments(medicine.name)])
+  const recordMatches = scopedRecords
+    .filter((record) => {
+      const text = [
+        record.prescriptionNote,
+        record.doctorAdvice,
+        record.note,
+        record.clinicalSummary,
+      ]
+        .join(" ")
+        .toLowerCase()
+
+      return (
+        medicineNames.some((name) => name.length > 1 && text.includes(name.toLowerCase())) ||
+        ["服用", "用药", "处方", "药"].some((keyword) => text.includes(keyword))
+      )
+    })
+    .sort((a, b) => b.visitedAt.localeCompare(a.visitedAt))
+    .slice(0, 5)
+    .map((record) => ({
+      record,
+      member: members.find((item) => item.id === record.memberId),
+      reason: "病历中包含处方、用药或药品相关记录。",
+    }))
+
+  const recentMedicineIds = new Set(
+    recordMatches.flatMap((match) => {
+      const text = joinRecordText(match.record)
+      return scopedMedicines
+        .filter((medicine) => medicineNameFragments(medicine.name).some((fragment) => text.includes(fragment)))
+        .map((medicine) => medicine.id)
+    })
+  )
+  const medicineMatches = scopedMedicines
+    .filter((medicine) => recentMedicineIds.has(medicine.id))
+    .map((medicine) => ({
+      medicine,
+      member: members.find((item) => item.id === medicine.memberId),
+      reason: "药品库中存在与近期病历用药线索对应的药品。",
+    }))
+
+  return [...recordMatches, ...medicineMatches]
+}
+
+export function findSymptomHistory(
+  records: MedicalRecord[],
+  members: Member[],
+  question: string,
+): AssistantSymptomHistoryMatch[] {
+  const targetMember = findTargetMember(question, members)
+  const symptomTerms = getQuestionSymptomTerms(question)
+  const scopedRecords = targetMember ? records.filter((record) => record.memberId === targetMember.id) : records
+  const termsToUse = symptomTerms.length ? symptomTerms : normalizeQuestionTerms(question)
+
+  return scopedRecords
+    .flatMap((record) => {
+      const text = joinRecordText(record)
+      const matchedSymptoms = termsToUse.filter((term) => text.includes(term.toLowerCase()))
+
+      return matchedSymptoms.length
+        ? [{
+            record,
+            member: members.find((item) => item.id === record.memberId),
+            matchedSymptoms,
+          }]
+        : []
+    })
+    .sort((a, b) => b.record.visitedAt.localeCompare(a.record.visitedAt))
+}
+
+export function findMedicineAllergyConflicts(
+  medicines: Medicine[],
+  allergies: AllergyRecord[],
+  members: Member[],
+  question: string,
+): AssistantMedicineAllergyConflictMatch[] {
+  const targetMember = findTargetMember(question, members)
+  const scopedAllergies = targetMember ? allergies.filter((record) => record.memberId === targetMember.id) : allergies
+  const questionTerms = normalizeQuestionTerms(question)
+  const mentionedMedicines = medicines.filter((medicine) => {
+    const medicineText = joinMedicineText(medicine)
+    return (
+      question.includes(medicine.name) ||
+      medicineNameFragments(medicine.name).some((fragment) => question.includes(fragment)) ||
+      questionTerms.some((term) => medicineText.includes(term))
+    )
+  })
+  const medicinesToCheck = mentionedMedicines.length
+    ? mentionedMedicines
+    : targetMember
+      ? medicines.filter((medicine) => medicine.memberId === targetMember.id)
+      : medicines
+  const matches = medicinesToCheck.flatMap((medicine) => {
+    const medicineText = joinMedicineText(medicine)
+    const relatedAllergies = scopedAllergies.filter((allergy) => {
+      const allergyText = joinAllergyText(allergy)
+      const allergenFragments = medicineNameFragments(allergy.allergen)
+      return (
+        medicineText.includes(allergy.allergen.toLowerCase()) ||
+        allergyText.includes(medicine.name.toLowerCase()) ||
+        medicineNameFragments(medicine.name).some((fragment) => allergyText.includes(fragment)) ||
+        allergenFragments.some((fragment) => medicineText.includes(fragment))
+      )
+    })
+
+    const allergiesToReturn = relatedAllergies.length ? relatedAllergies : scopedAllergies
+
+    return allergiesToReturn.map((allergy) => ({
+      medicine,
+      allergy,
+      member: members.find((item) => item.id === medicine.memberId || item.id === allergy.memberId),
+      riskText: relatedAllergies.length
+        ? "药品资料和过敏记录存在直接文本命中，需要重点核对。"
+        : "未发现直接文本命中，但存在过敏/不良反应记录，用药前仍建议核对。",
+    }))
+  })
+
+  if (matches.length) {
+    return matches.slice(0, 8)
+  }
+
+  return scopedAllergies.slice(0, 5).map((allergy) => ({
+    allergy,
+    member: members.find((item) => item.id === allergy.memberId),
+    riskText: "未匹配到具体药品，但存在过敏/不良反应记录。",
+  }))
 }
 
 export function findVisitPreparation(

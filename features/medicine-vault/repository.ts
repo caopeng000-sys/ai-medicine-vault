@@ -4,6 +4,7 @@ import type { AllergySeverity } from "@prisma/client"
 import type { RepositoryContext } from "@/features/medicine-vault/auth-context"
 import type {
   AllergyRecord,
+  MedicalRecordAttachment,
   MedicalRecord,
   Member,
   Medicine,
@@ -38,6 +39,11 @@ import type {
   UpdateMemberInput,
 } from "@/features/medicine-vault/schemas"
 import type { MedicineImageAttachment } from "@/features/medicine-vault/medicine-request"
+import {
+  deleteMedicalRecordAttachment,
+  readMedicalRecordAttachment,
+  storeMedicalRecordAttachment,
+} from "@/features/medicine-vault/medical-record-attachment-storage"
 
 export type MedicinePageQuery = Readonly<{
   memberId?: string
@@ -63,6 +69,14 @@ export type AiCallLogInput = Readonly<{
   inputBytes?: number
   outputBytes?: number
   errorMessage?: string
+}>
+
+export type CreateMedicalRecordAttachmentInput = Readonly<{
+  fileBytes: Uint8Array
+  fileName: string
+  mimeType: string
+  kind: string
+  note: string
 }>
 
 export { DEFAULT_MEDICINE_PAGE_SIZE } from "@/features/medicine-vault/medicine-pagination"
@@ -112,6 +126,16 @@ function mapMedicalRecord(record: {
   doctorAdvice: string
   prescriptionNote: string
   note: string
+  attachments?: Array<{
+    id: string
+    userId: string
+    recordId: string
+    fileName: string
+    mimeType: string
+    kind: string
+    note: string
+    createdAt: Date
+  }>
 }): MedicalRecord {
   return {
     id: record.id,
@@ -128,6 +152,29 @@ function mapMedicalRecord(record: {
     doctorAdvice: record.doctorAdvice,
     prescriptionNote: record.prescriptionNote,
     note: record.note,
+    attachments: record.attachments?.map(mapMedicalRecordAttachment) ?? [],
+  }
+}
+
+function mapMedicalRecordAttachment(attachment: {
+  id: string
+  userId: string
+  recordId: string
+  fileName: string
+  mimeType: string
+  kind: string
+  note: string
+  createdAt: Date
+}): MedicalRecordAttachment {
+  return {
+    id: attachment.id,
+    userId: attachment.userId,
+    recordId: attachment.recordId,
+    fileName: attachment.fileName,
+    mimeType: attachment.mimeType,
+    kind: attachment.kind,
+    note: attachment.note,
+    createdAt: formatDateOnly(attachment.createdAt),
   }
 }
 
@@ -333,6 +380,11 @@ export async function listMedicalRecords(ctx: RepositoryContext, memberId?: stri
       where: {
         userId: ctx.userId,
         ...(memberId ? { memberId } : {}),
+      },
+      include: {
+        attachments: {
+          orderBy: { createdAt: "desc" },
+        },
       },
       orderBy: { visitedAt: "desc" },
     })
@@ -735,6 +787,125 @@ export async function createMedicalRecord(ctx: RepositoryContext, input: CreateM
   })
 
   return mapMedicalRecord(record)
+}
+
+export async function createMedicalRecordAttachment(
+  ctx: RepositoryContext,
+  recordId: string,
+  input: CreateMedicalRecordAttachmentInput
+) {
+  const prisma = getPrismaClient()
+
+  if (!prisma) {
+    throw new Error("当前还没有配置 DATABASE_URL，暂时无法写入真实数据库。")
+  }
+
+  const record = await prisma.medicalRecord.findFirst({
+    where: {
+      id: recordId,
+      userId: ctx.userId,
+    },
+    select: { id: true },
+  })
+
+  if (!record) {
+    throw new Error("病历不存在或不属于当前用户。")
+  }
+
+  const stored = await storeMedicalRecordAttachment({
+    userId: ctx.userId,
+    recordId,
+    fileBytes: input.fileBytes,
+    fileName: input.fileName,
+    mimeType: input.mimeType,
+  })
+
+  try {
+    const attachment = await prisma.medicalRecordAttachment.create({
+      data: {
+        userId: ctx.userId,
+        recordId,
+        fileKey: stored.fileKey,
+        fileName: stored.fileName,
+        mimeType: stored.mimeType,
+        kind: fallbackText(input.kind, "检查报告"),
+        note: fallbackText(input.note, ""),
+      },
+    })
+
+    return mapMedicalRecordAttachment(attachment)
+  } catch (error) {
+    await deleteMedicalRecordAttachment(stored.fileKey)
+    throw error
+  }
+}
+
+export async function getMedicalRecordAttachmentById(
+  ctx: RepositoryContext,
+  recordId: string,
+  attachmentId: string
+) {
+  const prisma = getPrismaClient()
+
+  if (!prisma) {
+    return undefined
+  }
+
+  try {
+    const attachment = await prisma.medicalRecordAttachment.findFirst({
+      where: {
+        id: attachmentId,
+        recordId,
+        userId: ctx.userId,
+      },
+    })
+
+    if (!attachment) {
+      return undefined
+    }
+
+    const stored = await readMedicalRecordAttachment(attachment.fileKey)
+
+    return {
+      fileBytes: stored.fileBytes,
+      fileName: attachment.fileName,
+      mimeType: attachment.mimeType,
+    }
+  } catch {
+    return undefined
+  }
+}
+
+export async function deleteMedicalRecordAttachmentById(
+  ctx: RepositoryContext,
+  recordId: string,
+  attachmentId: string
+) {
+  const prisma = getPrismaClient()
+
+  if (!prisma) {
+    throw new Error("当前还没有配置 DATABASE_URL，暂时无法写入真实数据库。")
+  }
+
+  const attachment = await prisma.medicalRecordAttachment.findFirst({
+    where: {
+      id: attachmentId,
+      recordId,
+      userId: ctx.userId,
+    },
+  })
+
+  if (!attachment) {
+    throw new Error("病历附件不存在或不属于当前用户。")
+  }
+
+  const deleted = await prisma.medicalRecordAttachment.delete({
+    where: { id: attachmentId },
+  })
+
+  await deleteMedicalRecordAttachment(attachment.fileKey)
+
+  return mapMedicalRecordAttachment(deleted)
 }
 
 export async function createMedicine(

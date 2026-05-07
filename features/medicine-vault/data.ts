@@ -24,6 +24,18 @@ export type MedicalRecord = {
   doctorAdvice: string
   prescriptionNote: string
   note: string
+  attachments?: MedicalRecordAttachment[]
+}
+
+export type MedicalRecordAttachment = {
+  id: string
+  userId: string
+  recordId: string
+  fileName: string
+  mimeType: string
+  kind: string
+  note: string
+  createdAt: string
 }
 
 export type Medicine = {

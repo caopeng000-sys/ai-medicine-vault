@@ -10,8 +10,11 @@ import {
   findMedicineDisposalGuidance,
   findMedicineInteractionGuidance,
   findMedicineUsageGuidance,
+  findMedicineAllergyConflicts,
   findVisitPreparation,
+  findRecentMedicineHistory,
   parseAssistantIntent,
+  findSymptomHistory,
   type AssistantIntent,
 } from "./assistant-routing"
 
@@ -60,7 +63,7 @@ type AssistantDependencies = Readonly<{
 }>
 
 const UNSUPPORTED_MESSAGE =
-  "这类问题我现在还不支持。你可以问我上次什么时候感冒、我之前对哪些药有过不适、布洛芬怎么吃、家里有哪些抗过敏药、两种药能不能一起吃、过期药怎么处理，或者下次看医生前要准备什么。"
+  "这类问题我现在还不支持。你可以问我上次什么时候感冒、最近吃过哪些药、之前咳嗽看过几次、这个药和过敏史有没有冲突、我之前对哪些药有过不适、布洛芬怎么吃、家里有哪些抗过敏药、两种药能不能一起吃、过期药怎么处理，或者下次看医生前要准备什么。"
 const NO_RESULT_MESSAGE = "我找到了这个问题对应的方向，但暂时没有查到可用记录。"
 
 function buildSourceDetail(title: string, detail: string) {
@@ -120,6 +123,21 @@ function fallbackAnswer(intent: AssistantIntent, sources: AssistantSource[]) {
   if (intent === "medicine_disposal") {
     if (sources.length === 0) return NO_RESULT_MESSAGE
     return `我查到这些需要处理的药品：${sources.map((item) => item.label).join("、")}。过期药不要继续服用，建议按说明书或当地药品回收要求处理。`
+  }
+
+  if (intent === "recent_medicine_history") {
+    if (sources.length === 0) return NO_RESULT_MESSAGE
+    return `我查到这些近期用药线索：${sources.map((item) => item.label).join("、")}。`
+  }
+
+  if (intent === "symptom_history") {
+    if (sources.length === 0) return NO_RESULT_MESSAGE
+    return `我查到这些症状相关病历：${sources.map((item) => item.label).join("、")}。`
+  }
+
+  if (intent === "medicine_allergy_conflict") {
+    if (sources.length === 0) return NO_RESULT_MESSAGE
+    return `我查到这些需要核对的药品和过敏史资料：${sources.map((item) => item.label).join("、")}。这只是资料匹配结果，用药前请让医生或药师确认。`
   }
 
   if (intent === "medicine_query") {
@@ -202,9 +220,12 @@ async function defaultClassifyQuestion(question: string): Promise<AssistantClass
           content: [
             "你是一个家庭健康资料助手的意图识别器。",
             "只允许返回 JSON。",
-            '可选 intent 只有八个：recent_cold_record, allergy_history, medicine_usage, medicine_interaction, medicine_disposal, medicine_query, visit_preparation, unsupported。',
+            '可选 intent 只有十一个：recent_cold_record, allergy_history, medicine_usage, medicine_interaction, medicine_disposal, recent_medicine_history, symptom_history, medicine_allergy_conflict, medicine_query, visit_preparation, unsupported。',
             '如果问题在问“上次什么时候感冒 / 上次感冒 / 最近感冒记录”，返回 recent_cold_record。',
+            '如果问题在问“最近吃过哪些药 / 最近用过什么药 / 这段时间吃了什么药 / 用药记录”，返回 recent_medicine_history。',
+            '如果问题在问“之前咳嗽看过几次 / 某个症状历史回顾 / 有没有因为某症状就医”，返回 symptom_history。',
             '如果问题在问“我之前对哪些药有过不适 / 药物过敏史 / 过敏反应 / 不良反应”，返回 allergy_history。',
+            '如果问题在问“这个药和我的过敏史有没有冲突 / 用药前是否要注意过敏史 / 会不会过敏”，返回 medicine_allergy_conflict。',
             '如果问题在问“能不能一起吃 / 相互作用 / 同服 / 联用 / 重复成分 / 不能同服”，返回 medicine_interaction。',
             '如果问题在问“过期药怎么办 / 过期药还能不能吃 / 怎么处理过期药 / 家里有哪些过期药”，返回 medicine_disposal。',
             '如果问题在问“布洛芬怎么吃 / 服用方法 / 饭前饭后 / 注意事项 / 用法用量”，返回 medicine_usage。',
@@ -563,6 +584,168 @@ export async function resolveAssistantQuery(
         memberId: match.medicine.memberId,
       }
     })
+
+    try {
+      const answer = await runtime.summarizeAnswer({
+        question: normalizedQuestion,
+        intent: classification.intent,
+        sources,
+        context: buildContext(classification.intent, sources),
+      })
+
+      return {
+        intent: classification.intent,
+        answer: answer || fallbackAnswer(classification.intent, sources),
+        sources,
+      }
+    } catch {
+      return {
+        intent: classification.intent,
+        answer: fallbackAnswer(classification.intent, sources),
+        sources,
+      }
+    }
+  }
+
+  if (classification.intent === "recent_medicine_history") {
+    const [members, records, medicines] = await Promise.all([
+      runtime.listMembers(ctx),
+      runtime.listMedicalRecords(ctx),
+      runtime.listMedicines(ctx),
+    ])
+    const matches = findRecentMedicineHistory(records, medicines, members, normalizedQuestion)
+
+    if (!matches.length) {
+      return {
+        intent: classification.intent,
+        answer: NO_RESULT_MESSAGE,
+        sources: [],
+      }
+    }
+
+    const sources: AssistantSource[] = matches.map((match) => {
+      if (match.record) {
+        return {
+          label: `用药线索 · ${match.member?.name ?? "未知成员"} · ${match.record.visitedAt}`,
+          detail: buildSourceDetail(
+            match.record.diagnosis,
+            [
+              match.record.prescriptionNote || "暂无处方备注",
+              match.record.doctorAdvice,
+              match.record.note,
+            ].join(" / "),
+          ),
+          memberId: match.record.memberId,
+        }
+      }
+
+      return {
+        label: `药品库 · ${match.member?.name ?? "未知成员"} · ${match.medicine?.name ?? "未知药品"}`,
+        detail: buildSourceDetail(
+          match.medicine?.category ?? "药品",
+          `${match.medicine?.purpose ?? "暂无用途"} · ${match.medicine?.instructions ?? "暂无说明"}`,
+        ),
+        memberId: match.medicine?.memberId,
+      }
+    })
+
+    try {
+      const answer = await runtime.summarizeAnswer({
+        question: normalizedQuestion,
+        intent: classification.intent,
+        sources,
+        context: buildContext(classification.intent, sources),
+      })
+
+      return {
+        intent: classification.intent,
+        answer: answer || fallbackAnswer(classification.intent, sources),
+        sources,
+      }
+    } catch {
+      return {
+        intent: classification.intent,
+        answer: fallbackAnswer(classification.intent, sources),
+        sources,
+      }
+    }
+  }
+
+  if (classification.intent === "symptom_history") {
+    const [members, records] = await Promise.all([runtime.listMembers(ctx), runtime.listMedicalRecords(ctx)])
+    const matches = findSymptomHistory(records, members, normalizedQuestion)
+
+    if (!matches.length) {
+      return {
+        intent: classification.intent,
+        answer: NO_RESULT_MESSAGE,
+        sources: [],
+      }
+    }
+
+    const sources: AssistantSource[] = matches.map((match) => ({
+      label: `症状病历 · ${match.member?.name ?? "未知成员"} · ${match.record.visitedAt}`,
+      detail: buildSourceDetail(
+        match.record.diagnosis,
+        [
+          `命中症状：${match.matchedSymptoms.join("、")}`,
+          match.record.symptoms,
+          match.record.clinicalSummary || "暂无诊疗摘要",
+          match.record.examinationResults || "暂无检查结果",
+        ].join(" / "),
+      ),
+      memberId: match.record.memberId,
+    }))
+
+    try {
+      const answer = await runtime.summarizeAnswer({
+        question: normalizedQuestion,
+        intent: classification.intent,
+        sources,
+        context: buildContext(classification.intent, sources),
+      })
+
+      return {
+        intent: classification.intent,
+        answer: answer || fallbackAnswer(classification.intent, sources),
+        sources,
+      }
+    } catch {
+      return {
+        intent: classification.intent,
+        answer: fallbackAnswer(classification.intent, sources),
+        sources,
+      }
+    }
+  }
+
+  if (classification.intent === "medicine_allergy_conflict") {
+    const [members, medicines, allergyRecords] = await Promise.all([
+      runtime.listMembers(ctx),
+      runtime.listMedicines(ctx),
+      runtime.listAllergyRecords(ctx),
+    ])
+    const matches = findMedicineAllergyConflicts(medicines, allergyRecords, members, normalizedQuestion)
+
+    if (!matches.length) {
+      return {
+        intent: classification.intent,
+        answer: NO_RESULT_MESSAGE,
+        sources: [],
+      }
+    }
+
+    const sources: AssistantSource[] = matches.map((match) => ({
+      label: `过敏核对 · ${match.member?.name ?? "未知成员"} · ${match.medicine?.name ?? match.allergy?.allergen ?? "过敏史"}`,
+      detail: buildSourceDetail(
+        match.riskText,
+        [
+          match.medicine ? `${match.medicine.category} / ${match.medicine.purpose} / ${match.medicine.safetyNote}` : "未匹配到具体药品",
+          match.allergy ? `${match.allergy.allergen} / ${match.allergy.reaction} / ${match.allergy.note}` : "暂无过敏记录",
+        ].join(" · "),
+      ),
+      memberId: match.medicine?.memberId ?? match.allergy?.memberId,
+    }))
 
     try {
       const answer = await runtime.summarizeAnswer({

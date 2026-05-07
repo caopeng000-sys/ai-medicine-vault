@@ -1,15 +1,18 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
-import { medicalRecords, medicines, members } from "./data"
+import { allergyRecords, medicalRecords, medicines, members } from "./data"
 import {
   detectAssistantIntent,
   findAllergyHistory,
   findAntiallergicMedicines,
+  findMedicineAllergyConflicts,
   findMedicineDisposalGuidance,
   findMedicineInteractionGuidance,
   findMedicineUsageGuidance,
   findRecentColdRecord,
+  findRecentMedicineHistory,
+  findSymptomHistory,
   parseAssistantIntent,
 } from "./assistant-routing"
 
@@ -64,6 +67,12 @@ describe("assistant routing helpers", () => {
     assert.equal(result.reason, "命中了过期药处理意图")
   })
 
+  it("parses new assistant intents from JSON text", () => {
+    assert.equal(parseAssistantIntent('{"intent":"recent_medicine_history","reason":"最近用药"}').intent, "recent_medicine_history")
+    assert.equal(parseAssistantIntent('{"intent":"symptom_history","reason":"症状历史"}').intent, "symptom_history")
+    assert.equal(parseAssistantIntent('{"intent":"medicine_allergy_conflict","reason":"过敏冲突"}').intent, "medicine_allergy_conflict")
+  })
+
   it("finds allergy history records for self-related questions", () => {
     const result = findAllergyHistory(
       [
@@ -109,6 +118,20 @@ describe("assistant routing helpers", () => {
     assert.equal(detectAssistantIntent("过期药怎么办"), "medicine_disposal")
   })
 
+  it("detects medicine allergy conflicts before general medicine routing", () => {
+    assert.equal(detectAssistantIntent("阿莫西林和我的过敏史有没有冲突"), "medicine_allergy_conflict")
+  })
+
+  it("detects recent medicine history questions", () => {
+    assert.equal(detectAssistantIntent("我最近吃过哪些药？"), "recent_medicine_history")
+    assert.equal(detectAssistantIntent("这段时间吃了什么药"), "recent_medicine_history")
+  })
+
+  it("detects symptom history without hijacking medicine inventory questions", () => {
+    assert.equal(detectAssistantIntent("我之前咳嗽看过几次？"), "symptom_history")
+    assert.equal(detectAssistantIntent("家里有哪些咳嗽药？"), "medicine_query")
+  })
+
   it("finds medicine usage guidance records", () => {
     const result = findMedicineUsageGuidance(medicines, members, "布洛芬缓释胶囊怎么吃")
 
@@ -131,5 +154,41 @@ describe("assistant routing helpers", () => {
     assert.ok(result.length >= 1)
     assert.ok(result.some((item) => item.medicine.id === "medicine-cefixime"))
     assert.ok(result.every((item) => item.medicine.category !== "设备耗材"))
+  })
+
+  it("finds recent medicine history from medical records and medicine catalog", () => {
+    const result = findRecentMedicineHistory(medicalRecords, medicines, members, "我最近吃过哪些药？")
+
+    assert.ok(result.some((item) => item.record?.id === "record-20260412"))
+    assert.ok(result.some((item) => item.record?.id === "record-20260308"))
+    assert.ok(result.some((item) => item.medicine?.id === "medicine-ibuprofen"))
+    assert.ok(result.some((item) => item.medicine?.id === "medicine-loratadine"))
+    assert.equal(result[0]?.record?.id, "record-20260412")
+  })
+
+  it("finds symptom history records by symptom in reverse chronological order", () => {
+    const result = findSymptomHistory(medicalRecords, members, "我之前鼻塞有没有就医？")
+
+    assert.equal(result.length, 1)
+    assert.equal(result[0]?.record.id, "record-20260308")
+    assert.deepEqual(result[0]?.matchedSymptoms, ["鼻塞"])
+  })
+
+  it("finds medicine allergy conflicts against the target member allergy history", () => {
+    const result = findMedicineAllergyConflicts(medicines, allergyRecords, members, "阿莫西林和我的过敏史有没有冲突？")
+
+    assert.ok(result.length >= 1)
+    assert.equal(result[0]?.medicine?.id, "medicine-amoxicillin")
+    assert.equal(result[0]?.allergy?.id, "allergy-penicillin")
+    assert.equal(result[0]?.member?.id, "member-cp")
+    assert.match(result[0]?.riskText ?? "", /直接文本命中/)
+  })
+
+  it("returns relevant allergy history for allergy conflict checks without direct medicine hits", () => {
+    const result = findMedicineAllergyConflicts([], allergyRecords, members, "用药前要不要注意过敏史？")
+
+    assert.ok(result.length >= 1)
+    assert.ok(result.some((item) => item.allergy?.id === "allergy-penicillin"))
+    assert.ok(result.every((item) => item.riskText.length > 0))
   })
 })

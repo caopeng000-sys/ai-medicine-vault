@@ -57,7 +57,7 @@ describe("assistant service", () => {
     assert.equal(result.answer, "")
     assert.equal(
       result.message,
-      "这类问题我现在还不支持。你可以问我上次什么时候感冒、我之前对哪些药有过不适、布洛芬怎么吃、家里有哪些抗过敏药、两种药能不能一起吃、过期药怎么处理，或者下次看医生前要准备什么。",
+      "这类问题我现在还不支持。你可以问我上次什么时候感冒、最近吃过哪些药、之前咳嗽看过几次、这个药和过敏史有没有冲突、我之前对哪些药有过不适、布洛芬怎么吃、家里有哪些抗过敏药、两种药能不能一起吃、过期药怎么处理，或者下次看医生前要准备什么。",
     )
     assert.equal(askedMembers, false)
     assert.equal(askedRecords, false)
@@ -166,6 +166,74 @@ describe("assistant service", () => {
     assert.equal(result.answer, "medicine_disposal:过期药处理 · 曹鹏 · 维生素 C 片")
     assert.equal(result.sources[0]?.label, "过期药处理 · 曹鹏 · 维生素 C 片")
     assert.equal(result.sources[0]?.memberId, "member-cp")
+  })
+
+  it("routes recent medicine history questions to medical record backed sources", async () => {
+    const result = await resolveAssistantQuery(ctx, "我最近吃过哪些药？", {
+      classifyQuestion: async () => ({
+        intent: "recent_medicine_history",
+        reason: "近期用药问题",
+      }),
+      selectMedicines: async () => ({ selectedIds: [], summary: "", reason: "" }),
+      summarizeAnswer: async ({ intent, sources }) => `${intent}:${sources.map((source) => source.label).join("|")}`,
+      listMembers: async () => members,
+      listAllergyRecords: async () => [],
+      listMedicalRecords: async () => medicalRecords,
+      listMedicines: async () => medicines,
+    })
+
+    assert.equal(result.intent, "recent_medicine_history")
+    assert.ok(result.answer.includes("recent_medicine_history:"))
+    assert.ok(result.sources.some((source) => source.label.includes("用药线索")))
+  })
+
+  it("routes symptom history questions to matching records", async () => {
+    const result = await resolveAssistantQuery(ctx, "我之前咳嗽看过几次？", {
+      classifyQuestion: async () => ({
+        intent: "symptom_history",
+        reason: "症状历史问题",
+      }),
+      selectMedicines: async () => ({ selectedIds: [], summary: "", reason: "" }),
+      summarizeAnswer: async ({ intent, sources }) => `${intent}:${sources.map((source) => source.label).join("|")}`,
+      listMembers: async () => members,
+      listAllergyRecords: async () => [],
+      listMedicalRecords: async () => medicalRecords,
+      listMedicines: async () => medicines,
+    })
+
+    assert.equal(result.intent, "symptom_history")
+    assert.ok(result.sources.some((source) => source.label.includes("症状病历")))
+    assert.ok(result.sources[0]?.detail.includes("咳嗽"))
+  })
+
+  it("routes medicine allergy conflict questions to allergy review sources", async () => {
+    const result = await resolveAssistantQuery(ctx, "布洛芬和我的过敏史有没有冲突？", {
+      classifyQuestion: async () => ({
+        intent: "medicine_allergy_conflict",
+        reason: "过敏核对问题",
+      }),
+      selectMedicines: async () => ({ selectedIds: [], summary: "", reason: "" }),
+      summarizeAnswer: async ({ intent, sources }) => `${intent}:${sources.map((source) => source.label).join("|")}`,
+      listMembers: async () => members,
+      listAllergyRecords: async () => [
+        {
+          id: "allergy-ibuprofen",
+          userId: ctx.userId,
+          memberId: "member-cp",
+          allergen: "布洛芬",
+          reaction: "服用后胃部不适",
+          severity: "中等",
+          discoveredAt: "2026-01-01",
+          note: "用药前需要咨询医生。",
+        },
+      ],
+      listMedicalRecords: async () => medicalRecords,
+      listMedicines: async () => medicines,
+    })
+
+    assert.equal(result.intent, "medicine_allergy_conflict")
+    assert.equal(result.sources[0]?.label, "过敏核对 · 曹鹏 · 布洛芬缓释胶囊")
+    assert.ok(result.sources[0]?.detail.includes("布洛芬"))
   })
 
   it("routes cough medicine questions to the medicine query flow", async () => {

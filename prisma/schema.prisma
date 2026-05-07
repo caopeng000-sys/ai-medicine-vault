@@ -28,6 +28,7 @@ model User {
   accounts          Account[]
   sessions          Session[]
   aiCallLogs        AiCallLog[]
+  medicalRecordAttachments MedicalRecordAttachment[]
   members           Member[]
   medicalRecords    MedicalRecord[]
   medicines         Medicine[]
@@ -109,8 +110,25 @@ model MedicalRecord {
   updatedAt          DateTime @updatedAt
   member             Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
   user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attachments        MedicalRecordAttachment[]
 
   @@index([userId, memberId, visitedAt(sort: Desc)])
+}
+
+model MedicalRecordAttachment {
+  id        String   @id @default(cuid())
+  userId    String
+  recordId  String
+  fileKey   String
+  fileName  String
+  mimeType  String
+  kind      String   @default("检查报告")
+  note      String   @default("")
+  createdAt DateTime @default(now())
+  record    MedicalRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, recordId, createdAt(sort: Desc)])
 }
 
 model Medicine {

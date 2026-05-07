@@ -6,6 +6,7 @@ import {
   ClipboardListIcon,
   FileTextIcon,
   HospitalIcon,
+  PaperclipIcon,
   PlusIcon,
   SearchIcon,
   StethoscopeIcon,
@@ -13,6 +14,8 @@ import {
 } from "lucide-react"
 
 import { MockEntryDialog } from "@/components/medicine-vault/mock-entry-dialog"
+import { RecordAttachmentDeleteButton } from "@/components/medicine-vault/record-attachment-delete-button"
+import { RecordAttachmentUploadDialog } from "@/components/medicine-vault/record-attachment-upload-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -39,6 +42,7 @@ export default async function RecordsPage({
 
   const departments = new Set(records.map((record) => record.department)).size
   const latestVisitedAt = records[0]?.visitedAt ?? "暂无记录"
+  const attachmentCount = records.reduce((total, record) => total + (record.attachments?.length ?? 0), 0)
 
   return (
     <div className="grid gap-6">
@@ -99,7 +103,7 @@ export default async function RecordsPage({
           />
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-3">
+          <div className="grid gap-3 lg:grid-cols-4">
             <div className="rounded-2xl border border-slate-100 bg-slate-50/85 p-4">
               <p className="inline-flex items-center gap-2 text-sm font-medium text-slate-600">
                 <FileTextIcon className="size-4 text-sky-500" aria-hidden="true" />
@@ -125,6 +129,15 @@ export default async function RecordsPage({
               </p>
               <p className="mt-3 text-3xl font-semibold text-slate-950">{latestVisitedAt}</p>
               <p className="mt-1 text-sm text-slate-500">作为 AI 摘要和就医准备清单的重要最近上下文。</p>
+            </div>
+
+            <div className="rounded-2xl border border-amber-100 bg-amber-50/90 p-4">
+              <p className="inline-flex items-center gap-2 text-sm font-medium text-amber-700">
+                <PaperclipIcon className="size-4" aria-hidden="true" />
+                病历附件
+              </p>
+              <p className="mt-3 text-3xl font-semibold text-slate-950">{attachmentCount}</p>
+              <p className="mt-1 text-sm text-slate-500">处方单、检查报告和就诊资料会跟随病历归档。</p>
             </div>
           </div>
 
@@ -165,8 +178,29 @@ export default async function RecordsPage({
               ))}
             </div>
           </div>
+
+          <div className="rounded-[22px] border border-sky-100 bg-sky-50/70 p-4">
+            <p className="inline-flex items-center gap-2 text-sm font-semibold text-sky-700">
+              <PaperclipIcon className="size-4" aria-hidden="true" />
+              病历附件能力
+            </p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              上传入口会出现在每条病历卡片右侧。先新增一条病历后，就可以给这条病历上传检查报告、处方单、就诊照片或 PDF，并可在上传前使用 AI 摘要图片内容。
+            </p>
+          </div>
         </div>
 
+        {records.length === 0 ? (
+          <section className="mt-6 rounded-[26px] border border-dashed border-slate-200 bg-slate-50/75 p-8 text-center">
+            <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-white text-sky-500 shadow-sm">
+              <PaperclipIcon className="size-6" aria-hidden="true" />
+            </div>
+            <h2 className="mt-4 text-xl font-semibold text-slate-950">还没有可挂附件的病历</h2>
+            <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+              附件必须归属于某一条病历。先点击右上角“新增病历”，保存成功后，病历卡片右侧会出现“上传附件”按钮。
+            </p>
+          </section>
+        ) : (
         <section className="mt-6 grid gap-4">
           {records.map((record, index) => {
             const owner = members.find((item) => item.id === record.memberId)
@@ -203,9 +237,12 @@ export default async function RecordsPage({
                       </div>
                     </div>
 
-                    <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                      <p className="font-medium text-slate-700">时间线序号</p>
-                      <p className="mt-1 text-lg font-semibold text-slate-950">#{String(index + 1).padStart(2, "0")}</p>
+                    <div className="flex flex-col items-start gap-3 sm:flex-row lg:flex-col lg:items-end">
+                      <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                        <p className="font-medium text-slate-700">时间线序号</p>
+                        <p className="mt-1 text-lg font-semibold text-slate-950">#{String(index + 1).padStart(2, "0")}</p>
+                      </div>
+                      <RecordAttachmentUploadDialog recordId={record.id} />
                     </div>
                   </div>
 
@@ -263,11 +300,62 @@ export default async function RecordsPage({
                       <p className="mt-2 text-sm leading-6 text-slate-500">{record.note}</p>
                     </div>
                   </div>
+
+                  <div className="rounded-[22px] border border-slate-100 bg-slate-50/70 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+                        <PaperclipIcon className="size-4 text-sky-500" aria-hidden="true" />
+                        附件归档
+                      </p>
+                      <Badge className="rounded-full px-3 py-1" variant="outline">
+                        {record.attachments?.length ?? 0} 个附件
+                      </Badge>
+                    </div>
+
+                    {record.attachments?.length ? (
+                      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        {record.attachments.map((attachment) => (
+                          <div
+                            className="rounded-2xl border border-slate-200 bg-white p-4 text-sm shadow-sm transition-colors hover:border-sky-200 hover:bg-sky-50/40"
+                            key={attachment.id}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <a
+                                className="min-w-0 flex-1"
+                                href={`/api/records/${record.id}/attachments/${attachment.id}`}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                <span className="inline-flex min-w-0 items-center gap-2 font-semibold text-slate-950">
+                                  <PaperclipIcon className="size-4 shrink-0 text-sky-500" aria-hidden="true" />
+                                  <span className="truncate">{attachment.fileName}</span>
+                                </span>
+                                <span className="mt-2 block text-slate-600">{attachment.kind}</span>
+                                <span className="mt-1 block text-xs leading-5 text-slate-500">
+                                  {attachment.note || "暂无备注"} · {attachment.createdAt}
+                                </span>
+                              </a>
+                              <RecordAttachmentDeleteButton
+                                attachmentId={attachment.id}
+                                fileName={attachment.fileName}
+                                recordId={record.id}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-sm leading-6 text-slate-500">
+                        当前病历还没有附件，可以上传处方单、检查报告或就诊照片。
+                      </p>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             )
           })}
         </section>
+        )}
 
         <footer className="mt-6 flex flex-col gap-4 border-t border-slate-100 pt-5 text-sm text-slate-500 md:flex-row md:items-center md:justify-between">
           <p>共 {records.length} 条记录</p>
