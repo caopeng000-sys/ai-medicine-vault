@@ -5,8 +5,10 @@ import Link from "next/link"
 import {
   ArrowUpRightIcon,
   BotIcon,
+  LibraryBigIcon,
   ChevronRightIcon,
   FileTextIcon,
+  BookOpenTextIcon,
   MessageSquareTextIcon,
   SearchIcon,
   ShieldCheckIcon,
@@ -44,6 +46,7 @@ const intentLabels: Record<AssistantIntent, string> = {
   medicine_allergy_conflict: "过敏核对",
   medicine_query: "药品查询",
   visit_preparation: "就医准备",
+  knowledge_base: "知识库",
   unsupported: "未支持",
 }
 
@@ -58,6 +61,8 @@ export function AssistantPanel() {
   const [error, setError] = useState("")
 
   const sourceCount = result?.sources.length ?? 0
+  const knowledgeSources = result?.sources.filter((source) => source.label.startsWith("知识库 ·")) ?? []
+  const structuredSources = result?.sources.filter((source) => !source.label.startsWith("知识库 ·")) ?? []
   const resultIntentLabel = result ? intentLabels[result.intent] : "等待提问"
   const visitPreparationHref =
     result?.intent === "visit_preparation" ? buildVisitPreparationHref(result.sources[0]?.memberId) : ""
@@ -130,8 +135,8 @@ export function AssistantPanel() {
                 <MessageSquareTextIcon className="size-4 text-violet-500" aria-hidden="true" />
                 支持意图
               </p>
-              <p className="mt-3 text-3xl font-semibold text-slate-950">10</p>
-              <p className="mt-1 text-sm text-slate-500">当前保留十个固定意图，回答稳定且带来源。</p>
+              <p className="mt-3 text-3xl font-semibold text-slate-950">11</p>
+              <p className="mt-1 text-sm text-slate-500">10 个结构化意图，加上知识库兜底回答和来源引用。</p>
             </div>
 
             <div className="rounded-2xl border border-emerald-100 bg-emerald-50/85 p-4">
@@ -140,7 +145,7 @@ export function AssistantPanel() {
                 当前结果
               </p>
               <p className="mt-3 text-3xl font-semibold text-slate-950">{sourceCount}</p>
-              <p className="mt-1 text-sm text-slate-500">答案会带上病历或药品库里的来源依据。</p>
+              <p className="mt-1 text-sm text-slate-500">答案会带上病历、药品库或知识库里的来源依据。</p>
             </div>
 
             <div className="rounded-2xl border border-sky-100 bg-sky-50/90 p-4">
@@ -151,6 +156,26 @@ export function AssistantPanel() {
               <p className="mt-3 text-3xl font-semibold text-slate-950">已收敛</p>
               <p className="mt-1 text-sm text-slate-500">不做诊断、不做治疗建议，只做资料整理和来源说明。</p>
             </div>
+          </div>
+
+          <div className="flex flex-col gap-3 rounded-[24px] border border-emerald-100 bg-emerald-50/70 p-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-start gap-3">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-white text-emerald-600 shadow-sm ring-1 ring-emerald-100">
+                <LibraryBigIcon className="size-5" aria-hidden="true" />
+              </span>
+              <div>
+                <p className="text-sm font-medium text-emerald-700">知识库已接入</p>
+                <p className="mt-1 text-sm leading-6 text-slate-600">
+                  结构化意图之外，助手会优先检索家庭整理的知识条目作为背景资料；你也可以直接管理这些条目。
+                </p>
+              </div>
+            </div>
+            <Button asChild className="rounded-2xl border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-100" variant="outline">
+              <Link href="/knowledge">
+                <BookOpenTextIcon className="size-4" aria-hidden="true" />
+                管理知识库
+              </Link>
+            </Button>
           </div>
 
           <form
@@ -269,12 +294,14 @@ export function AssistantPanel() {
                 <div className="rounded-[22px] border border-slate-100 bg-slate-50/70 p-4">
                   <p className="text-sm font-medium text-slate-700">依据来源</p>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {result?.sources.length ? (
-                      result.sources.map((source) => (
+                    {structuredSources.length ? (
+                      structuredSources.map((source) => (
                         <Badge className="rounded-full px-3 py-1" key={`${source.label}-${source.detail}`} variant="secondary">
                           {source.label}
                         </Badge>
                       ))
+                    ) : knowledgeSources.length ? (
+                      <span className="text-sm text-slate-500">本次回答主要来自知识库资料。</span>
                     ) : (
                       <span className="text-sm text-slate-500">这里会列出病历或药品来源。</span>
                     )}
@@ -286,8 +313,17 @@ export function AssistantPanel() {
                   <ul className="mt-3 grid gap-2">
                     {result?.sources.length ? (
                       result.sources.map((source) => (
-                        <li className="flex gap-2 rounded-2xl bg-white px-3 py-3 text-sm text-slate-600" key={source.detail}>
-                          <ArrowUpRightIcon className="mt-0.5 size-4 text-violet-500" aria-hidden="true" />
+                        <li
+                          className={`flex gap-2 rounded-2xl bg-white px-3 py-3 text-sm text-slate-600 ${
+                            source.label.startsWith("知识库 ·") ? "ring-1 ring-emerald-100" : ""
+                          }`}
+                          key={source.detail}
+                        >
+                          {source.label.startsWith("知识库 ·") ? (
+                            <LibraryBigIcon className="mt-0.5 size-4 text-emerald-500" aria-hidden="true" />
+                          ) : (
+                            <ArrowUpRightIcon className="mt-0.5 size-4 text-violet-500" aria-hidden="true" />
+                          )}
                           <span>
                             <strong className="font-medium text-slate-800">{source.label}</strong>
                             <span className="block text-slate-500">{source.detail}</span>
@@ -304,7 +340,7 @@ export function AssistantPanel() {
               <div className="flex items-start gap-3 rounded-[22px] border border-emerald-100 bg-emerald-50/70 p-4">
                 <ShieldCheckIcon className="mt-0.5 size-4 text-emerald-600" aria-hidden="true" />
                 <p className="text-sm leading-6 text-slate-600">
-                  当前支持感冒记录、近期用药、症状回顾、过敏核对、过敏记录、用药说明、药物相互作用、过期药处理、药品查询和就医准备十个意图。
+                  当前支持感冒记录、近期用药、症状回顾、过敏核对、过敏记录、用药说明、药物相互作用、过期药处理、药品查询、就医准备和知识库兜底回答。
                 </p>
               </div>
             </CardContent>

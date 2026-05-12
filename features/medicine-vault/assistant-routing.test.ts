@@ -71,6 +71,7 @@ describe("assistant routing helpers", () => {
     assert.equal(parseAssistantIntent('{"intent":"recent_medicine_history","reason":"最近用药"}').intent, "recent_medicine_history")
     assert.equal(parseAssistantIntent('{"intent":"symptom_history","reason":"症状历史"}').intent, "symptom_history")
     assert.equal(parseAssistantIntent('{"intent":"medicine_allergy_conflict","reason":"过敏冲突"}').intent, "medicine_allergy_conflict")
+    assert.equal(parseAssistantIntent('{"intent":"knowledge_base","reason":"知识库回答"}').intent, "knowledge_base")
   })
 
   it("finds allergy history records for self-related questions", () => {

@@ -12,6 +12,7 @@ export type AssistantIntent =
   | "medicine_allergy_conflict"
   | "medicine_query"
   | "visit_preparation"
+  | "knowledge_base"
   | "unsupported"
 
 export type AssistantIntentParseResult = Readonly<{
@@ -198,7 +199,8 @@ export function parseAssistantIntent(rawText: string): AssistantIntentParseResul
         parsed.intent === "symptom_history" ||
         parsed.intent === "medicine_allergy_conflict" ||
         parsed.intent === "medicine_query" ||
-        parsed.intent === "visit_preparation"
+        parsed.intent === "visit_preparation" ||
+        parsed.intent === "knowledge_base"
           ? parsed.intent
           : "unsupported",
       reason: typeof parsed.reason === "string" && parsed.reason.trim() ? parsed.reason.trim() : "未返回原因",

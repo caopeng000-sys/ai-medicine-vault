@@ -2,7 +2,15 @@ import type { AllergyRecord, MedicalRecord, Medicine, Member, VisitPreparation }
 import { createDashscopeChatCompletion } from "@/lib/ai/dashscope"
 
 import type { RepositoryContext } from "./auth-context"
-import { listAllergyRecords, listMedicalRecords, listMedicines, listMembers, listVisitPreparations } from "./repository"
+import {
+  listAllergyRecords,
+  listMedicalRecords,
+  listMedicines,
+  listMembers,
+  listVisitPreparations,
+  searchKnowledgeDocuments,
+  type KnowledgeSearchResult,
+} from "./repository"
 import {
   detectAssistantIntent,
   findAllergyHistory,
@@ -60,11 +68,19 @@ type AssistantDependencies = Readonly<{
   listMedicalRecords: (ctx: RepositoryContext) => Promise<MedicalRecord[]>
   listMedicines: (ctx: RepositoryContext) => Promise<Medicine[]>
   listVisitPreparations: (ctx: RepositoryContext) => Promise<VisitPreparation[]>
+  searchKnowledgeDocuments: (ctx: RepositoryContext, question: string, limit: number) => Promise<KnowledgeSearchResult[]>
 }>
 
 const UNSUPPORTED_MESSAGE =
-  "这类问题我现在还不支持。你可以问我上次什么时候感冒、最近吃过哪些药、之前咳嗽看过几次、这个药和过敏史有没有冲突、我之前对哪些药有过不适、布洛芬怎么吃、家里有哪些抗过敏药、两种药能不能一起吃、过期药怎么处理，或者下次看医生前要准备什么。"
+  "这类问题我现在还不支持。你可以问我上次什么时候感冒、最近吃过哪些药、之前咳嗽看过几次、这个药和过敏史有没有冲突、我之前对哪些药有过不适、布洛芬怎么吃、家里有哪些抗过敏药、两种药能不能一起吃、过期药怎么处理、下次看医生前要准备什么，或者试试知识库里的家庭整理笔记。"
 const NO_RESULT_MESSAGE = "我找到了这个问题对应的方向，但暂时没有查到可用记录。"
+
+type AssistantKnowledgeContext = Readonly<{
+  title: string
+  category: string
+  source: string
+  snippets: string[]
+}>
 
 function buildSourceDetail(title: string, detail: string) {
   return `${title} · ${detail}`
@@ -87,15 +103,113 @@ function buildMedicineCatalog(medicines: Medicine[], members: Member[]) {
     .join("\n\n---\n\n")
 }
 
-function buildContext(intent: AssistantIntent, sources: AssistantSource[]) {
+function buildKnowledgeSources(results: KnowledgeSearchResult[]) {
+  return results.map((result) => {
+    const snippets = result.chunks
+      .slice(0, 2)
+      .map((chunk) => chunk.content.trim())
+      .filter((item) => item.length > 0)
+
+    return {
+      label: `知识库 · ${result.document.title}`,
+      detail: buildSourceDetail(
+        `${result.document.category} / ${result.document.source}`,
+        snippets.length ? snippets.join(" / ") : result.document.content.slice(0, 120),
+      ),
+    }
+  })
+}
+
+function buildKnowledgeContext(results: KnowledgeSearchResult[]): AssistantKnowledgeContext[] {
+  return results.map((result) => ({
+    title: result.document.title,
+    category: result.document.category,
+    source: result.document.source,
+    snippets: result.chunks
+      .slice(0, 3)
+      .map((chunk) => chunk.content.trim())
+      .filter((item) => item.length > 0),
+  }))
+}
+
+function buildContext(intent: AssistantIntent, sources: AssistantSource[], knowledge: AssistantKnowledgeContext[] = []) {
   return JSON.stringify(
     {
       intent,
       sources,
+      knowledge,
     },
     null,
     2,
   )
+}
+
+async function respondNoMatch(
+  runtime: AssistantDependencies,
+  input: {
+    question: string
+    intent: AssistantIntent
+    knowledgeSources: AssistantSource[]
+    knowledge: AssistantKnowledgeContext[]
+  },
+): Promise<AssistantQueryResponse> {
+  if (input.knowledgeSources.length > 0) {
+    return finalizeIntentResponse(runtime, {
+      question: input.question,
+      intent: "knowledge_base",
+      sources: [],
+      knowledgeSources: input.knowledgeSources,
+      knowledge: input.knowledge,
+    })
+  }
+
+  if (input.intent === "unsupported") {
+    return {
+      intent: "unsupported",
+      answer: "",
+      message: UNSUPPORTED_MESSAGE,
+      sources: [],
+    }
+  }
+
+  return {
+    intent: input.intent,
+    answer: NO_RESULT_MESSAGE,
+    sources: [],
+  }
+}
+
+async function finalizeIntentResponse(
+  runtime: AssistantDependencies,
+  input: {
+    question: string
+    intent: AssistantIntent
+    sources: AssistantSource[]
+    knowledgeSources: AssistantSource[]
+    knowledge: AssistantKnowledgeContext[]
+  },
+): Promise<AssistantQueryResponse> {
+  const mergedSources = [...input.sources, ...input.knowledgeSources]
+  try {
+    const answer = await runtime.summarizeAnswer({
+      question: input.question,
+      intent: input.intent,
+      sources: mergedSources,
+      context: buildContext(input.intent, mergedSources, input.knowledge),
+    })
+
+    return {
+      intent: input.intent,
+      answer: answer || fallbackAnswer(input.intent, mergedSources),
+      sources: mergedSources,
+    }
+  } catch {
+    return {
+      intent: input.intent,
+      answer: fallbackAnswer(input.intent, mergedSources),
+      sources: mergedSources,
+    }
+  }
 }
 
 function fallbackAnswer(intent: AssistantIntent, sources: AssistantSource[]) {
@@ -148,6 +262,11 @@ function fallbackAnswer(intent: AssistantIntent, sources: AssistantSource[]) {
   if (intent === "visit_preparation") {
     if (sources.length === 0) return NO_RESULT_MESSAGE
     return `这份就医准备清单可以先参考：${sources[0]?.detail ?? "暂无摘要"}.`
+  }
+
+  if (intent === "knowledge_base") {
+    if (sources.length === 0) return NO_RESULT_MESSAGE
+    return `我查到这些知识库资料：${sources.map((item) => item.label.replace(/^知识库 · /, "")).join("、")}。`
   }
 
   return NO_RESULT_MESSAGE
@@ -220,7 +339,7 @@ async function defaultClassifyQuestion(question: string): Promise<AssistantClass
           content: [
             "你是一个家庭健康资料助手的意图识别器。",
             "只允许返回 JSON。",
-            '可选 intent 只有十一个：recent_cold_record, allergy_history, medicine_usage, medicine_interaction, medicine_disposal, recent_medicine_history, symptom_history, medicine_allergy_conflict, medicine_query, visit_preparation, unsupported。',
+            '可选 intent 只有十二个：recent_cold_record, allergy_history, medicine_usage, medicine_interaction, medicine_disposal, recent_medicine_history, symptom_history, medicine_allergy_conflict, medicine_query, visit_preparation, knowledge_base, unsupported。',
             '如果问题在问“上次什么时候感冒 / 上次感冒 / 最近感冒记录”，返回 recent_cold_record。',
             '如果问题在问“最近吃过哪些药 / 最近用过什么药 / 这段时间吃了什么药 / 用药记录”，返回 recent_medicine_history。',
             '如果问题在问“之前咳嗽看过几次 / 某个症状历史回顾 / 有没有因为某症状就医”，返回 symptom_history。',
@@ -344,6 +463,7 @@ const defaultDependencies: AssistantDependencies = {
   listMedicalRecords,
   listMedicines,
   listVisitPreparations,
+  searchKnowledgeDocuments,
 }
 
 export async function resolveAssistantQuery(
@@ -368,13 +488,33 @@ export async function resolveAssistantQuery(
 
   const classification = await runtime.classifyQuestion(normalizedQuestion)
 
-  if (classification.intent === "unsupported") {
-    return {
-      intent: "unsupported",
-      answer: "",
-      message: UNSUPPORTED_MESSAGE,
+  let knowledgeSearchResults: KnowledgeSearchResult[] = []
+  try {
+    knowledgeSearchResults = await runtime.searchKnowledgeDocuments(ctx, normalizedQuestion, 3)
+  } catch {
+    knowledgeSearchResults = []
+  }
+
+  const knowledgeSources = buildKnowledgeSources(knowledgeSearchResults)
+  const knowledgeContext = buildKnowledgeContext(knowledgeSearchResults)
+
+  if (classification.intent === "unsupported" && knowledgeSources.length > 0) {
+    return finalizeIntentResponse(runtime, {
+      question: normalizedQuestion,
+      intent: "knowledge_base",
       sources: [],
-    }
+      knowledgeSources,
+      knowledge: knowledgeContext,
+    })
+  }
+
+  if (classification.intent === "unsupported") {
+    return respondNoMatch(runtime, {
+      question: normalizedQuestion,
+      intent: "unsupported",
+      knowledgeSources,
+      knowledge: knowledgeContext,
+    })
   }
 
   if (classification.intent === "recent_cold_record") {
@@ -382,11 +522,12 @@ export async function resolveAssistantQuery(
     const match = findRecentColdRecord(records, members)
 
     if (!match) {
-      return {
+      return respondNoMatch(runtime, {
+        question: normalizedQuestion,
         intent: classification.intent,
-        answer: NO_RESULT_MESSAGE,
-        sources: [],
-      }
+        knowledgeSources,
+        knowledge: knowledgeContext,
+      })
     }
 
     const sources: AssistantSource[] = [
@@ -405,26 +546,13 @@ export async function resolveAssistantQuery(
       },
     ]
 
-    try {
-      const answer = await runtime.summarizeAnswer({
-        question: normalizedQuestion,
-        intent: classification.intent,
-        sources,
-        context: buildContext(classification.intent, sources),
-      })
-
-      return {
-        intent: classification.intent,
-        answer: answer || fallbackAnswer(classification.intent, sources),
-        sources,
-      }
-    } catch {
-      return {
-        intent: classification.intent,
-        answer: fallbackAnswer(classification.intent, sources),
-        sources,
-      }
-    }
+    return finalizeIntentResponse(runtime, {
+      question: normalizedQuestion,
+      intent: classification.intent,
+      sources,
+      knowledgeSources,
+      knowledge: knowledgeContext,
+    })
   }
 
   if (classification.intent === "allergy_history") {
@@ -432,11 +560,12 @@ export async function resolveAssistantQuery(
     const matches = findAllergyHistory(allergyRecords, members, normalizedQuestion)
 
     if (!matches.length) {
-      return {
+      return respondNoMatch(runtime, {
+        question: normalizedQuestion,
         intent: classification.intent,
-        answer: NO_RESULT_MESSAGE,
-        sources: [],
-      }
+        knowledgeSources,
+        knowledge: knowledgeContext,
+      })
     }
 
     const sources: AssistantSource[] = matches.map((match) => ({
@@ -445,26 +574,13 @@ export async function resolveAssistantQuery(
       memberId: match.record.memberId,
     }))
 
-    try {
-      const answer = await runtime.summarizeAnswer({
-        question: normalizedQuestion,
-        intent: classification.intent,
-        sources,
-        context: buildContext(classification.intent, sources),
-      })
-
-      return {
-        intent: classification.intent,
-        answer: answer || fallbackAnswer(classification.intent, sources),
-        sources,
-      }
-    } catch {
-      return {
-        intent: classification.intent,
-        answer: fallbackAnswer(classification.intent, sources),
-        sources,
-      }
-    }
+    return finalizeIntentResponse(runtime, {
+      question: normalizedQuestion,
+      intent: classification.intent,
+      sources,
+      knowledgeSources,
+      knowledge: knowledgeContext,
+    })
   }
 
   if (classification.intent === "medicine_usage") {
@@ -472,11 +588,12 @@ export async function resolveAssistantQuery(
     const matches = findMedicineUsageGuidance(medicines, members, normalizedQuestion)
 
     if (!matches.length) {
-      return {
+      return respondNoMatch(runtime, {
+        question: normalizedQuestion,
         intent: classification.intent,
-        answer: NO_RESULT_MESSAGE,
-        sources: [],
-      }
+        knowledgeSources,
+        knowledge: knowledgeContext,
+      })
     }
 
     const sources: AssistantSource[] = matches.map((match) => ({
@@ -488,26 +605,13 @@ export async function resolveAssistantQuery(
       memberId: match.medicine.memberId,
     }))
 
-    try {
-      const answer = await runtime.summarizeAnswer({
-        question: normalizedQuestion,
-        intent: classification.intent,
-        sources,
-        context: buildContext(classification.intent, sources),
-      })
-
-      return {
-        intent: classification.intent,
-        answer: answer || fallbackAnswer(classification.intent, sources),
-        sources,
-      }
-    } catch {
-      return {
-        intent: classification.intent,
-        answer: fallbackAnswer(classification.intent, sources),
-        sources,
-      }
-    }
+    return finalizeIntentResponse(runtime, {
+      question: normalizedQuestion,
+      intent: classification.intent,
+      sources,
+      knowledgeSources,
+      knowledge: knowledgeContext,
+    })
   }
 
   if (classification.intent === "medicine_interaction") {
@@ -515,11 +619,12 @@ export async function resolveAssistantQuery(
     const matches = findMedicineInteractionGuidance(medicines, members, normalizedQuestion)
 
     if (!matches.length) {
-      return {
+      return respondNoMatch(runtime, {
+        question: normalizedQuestion,
         intent: classification.intent,
-        answer: NO_RESULT_MESSAGE,
-        sources: [],
-      }
+        knowledgeSources,
+        knowledge: knowledgeContext,
+      })
     }
 
     const sources: AssistantSource[] = matches.map((match) => ({
@@ -532,26 +637,13 @@ export async function resolveAssistantQuery(
       memberId: match.medicine.memberId,
     }))
 
-    try {
-      const answer = await runtime.summarizeAnswer({
-        question: normalizedQuestion,
-        intent: classification.intent,
-        sources,
-        context: buildContext(classification.intent, sources),
-      })
-
-      return {
-        intent: classification.intent,
-        answer: answer || fallbackAnswer(classification.intent, sources),
-        sources,
-      }
-    } catch {
-      return {
-        intent: classification.intent,
-        answer: fallbackAnswer(classification.intent, sources),
-        sources,
-      }
-    }
+    return finalizeIntentResponse(runtime, {
+      question: normalizedQuestion,
+      intent: classification.intent,
+      sources,
+      knowledgeSources,
+      knowledge: knowledgeContext,
+    })
   }
 
   if (classification.intent === "medicine_disposal") {
@@ -559,11 +651,12 @@ export async function resolveAssistantQuery(
     const matches = findMedicineDisposalGuidance(medicines, members, normalizedQuestion)
 
     if (!matches.length) {
-      return {
+      return respondNoMatch(runtime, {
+        question: normalizedQuestion,
         intent: classification.intent,
-        answer: NO_RESULT_MESSAGE,
-        sources: [],
-      }
+        knowledgeSources,
+        knowledge: knowledgeContext,
+      })
     }
 
     const sources: AssistantSource[] = matches.map((match) => {
@@ -585,26 +678,13 @@ export async function resolveAssistantQuery(
       }
     })
 
-    try {
-      const answer = await runtime.summarizeAnswer({
-        question: normalizedQuestion,
-        intent: classification.intent,
-        sources,
-        context: buildContext(classification.intent, sources),
-      })
-
-      return {
-        intent: classification.intent,
-        answer: answer || fallbackAnswer(classification.intent, sources),
-        sources,
-      }
-    } catch {
-      return {
-        intent: classification.intent,
-        answer: fallbackAnswer(classification.intent, sources),
-        sources,
-      }
-    }
+    return finalizeIntentResponse(runtime, {
+      question: normalizedQuestion,
+      intent: classification.intent,
+      sources,
+      knowledgeSources,
+      knowledge: knowledgeContext,
+    })
   }
 
   if (classification.intent === "recent_medicine_history") {
@@ -616,11 +696,12 @@ export async function resolveAssistantQuery(
     const matches = findRecentMedicineHistory(records, medicines, members, normalizedQuestion)
 
     if (!matches.length) {
-      return {
+      return respondNoMatch(runtime, {
+        question: normalizedQuestion,
         intent: classification.intent,
-        answer: NO_RESULT_MESSAGE,
-        sources: [],
-      }
+        knowledgeSources,
+        knowledge: knowledgeContext,
+      })
     }
 
     const sources: AssistantSource[] = matches.map((match) => {
@@ -649,26 +730,13 @@ export async function resolveAssistantQuery(
       }
     })
 
-    try {
-      const answer = await runtime.summarizeAnswer({
-        question: normalizedQuestion,
-        intent: classification.intent,
-        sources,
-        context: buildContext(classification.intent, sources),
-      })
-
-      return {
-        intent: classification.intent,
-        answer: answer || fallbackAnswer(classification.intent, sources),
-        sources,
-      }
-    } catch {
-      return {
-        intent: classification.intent,
-        answer: fallbackAnswer(classification.intent, sources),
-        sources,
-      }
-    }
+    return finalizeIntentResponse(runtime, {
+      question: normalizedQuestion,
+      intent: classification.intent,
+      sources,
+      knowledgeSources,
+      knowledge: knowledgeContext,
+    })
   }
 
   if (classification.intent === "symptom_history") {
@@ -676,11 +744,12 @@ export async function resolveAssistantQuery(
     const matches = findSymptomHistory(records, members, normalizedQuestion)
 
     if (!matches.length) {
-      return {
+      return respondNoMatch(runtime, {
+        question: normalizedQuestion,
         intent: classification.intent,
-        answer: NO_RESULT_MESSAGE,
-        sources: [],
-      }
+        knowledgeSources,
+        knowledge: knowledgeContext,
+      })
     }
 
     const sources: AssistantSource[] = matches.map((match) => ({
@@ -697,26 +766,13 @@ export async function resolveAssistantQuery(
       memberId: match.record.memberId,
     }))
 
-    try {
-      const answer = await runtime.summarizeAnswer({
-        question: normalizedQuestion,
-        intent: classification.intent,
-        sources,
-        context: buildContext(classification.intent, sources),
-      })
-
-      return {
-        intent: classification.intent,
-        answer: answer || fallbackAnswer(classification.intent, sources),
-        sources,
-      }
-    } catch {
-      return {
-        intent: classification.intent,
-        answer: fallbackAnswer(classification.intent, sources),
-        sources,
-      }
-    }
+    return finalizeIntentResponse(runtime, {
+      question: normalizedQuestion,
+      intent: classification.intent,
+      sources,
+      knowledgeSources,
+      knowledge: knowledgeContext,
+    })
   }
 
   if (classification.intent === "medicine_allergy_conflict") {
@@ -728,11 +784,12 @@ export async function resolveAssistantQuery(
     const matches = findMedicineAllergyConflicts(medicines, allergyRecords, members, normalizedQuestion)
 
     if (!matches.length) {
-      return {
+      return respondNoMatch(runtime, {
+        question: normalizedQuestion,
         intent: classification.intent,
-        answer: NO_RESULT_MESSAGE,
-        sources: [],
-      }
+        knowledgeSources,
+        knowledge: knowledgeContext,
+      })
     }
 
     const sources: AssistantSource[] = matches.map((match) => ({
@@ -747,26 +804,13 @@ export async function resolveAssistantQuery(
       memberId: match.medicine?.memberId ?? match.allergy?.memberId,
     }))
 
-    try {
-      const answer = await runtime.summarizeAnswer({
-        question: normalizedQuestion,
-        intent: classification.intent,
-        sources,
-        context: buildContext(classification.intent, sources),
-      })
-
-      return {
-        intent: classification.intent,
-        answer: answer || fallbackAnswer(classification.intent, sources),
-        sources,
-      }
-    } catch {
-      return {
-        intent: classification.intent,
-        answer: fallbackAnswer(classification.intent, sources),
-        sources,
-      }
-    }
+    return finalizeIntentResponse(runtime, {
+      question: normalizedQuestion,
+      intent: classification.intent,
+      sources,
+      knowledgeSources,
+      knowledge: knowledgeContext,
+    })
   }
 
   if (classification.intent === "medicine_query") {
@@ -776,11 +820,12 @@ export async function resolveAssistantQuery(
     const selectedMedicines = medicines.filter((medicine) => selectedIdSet.has(medicine.id))
 
     if (selectedMedicines.length === 0) {
-      return {
+      return respondNoMatch(runtime, {
+        question: normalizedQuestion,
         intent: classification.intent,
-        answer: selection.summary || NO_RESULT_MESSAGE,
-        sources: [],
-      }
+        knowledgeSources,
+        knowledge: knowledgeContext,
+      })
     }
 
     const sources: AssistantSource[] = selectedMedicines.map((medicine) => ({
@@ -792,26 +837,13 @@ export async function resolveAssistantQuery(
       memberId: medicine.memberId,
     }))
 
-    try {
-      const answer = await runtime.summarizeAnswer({
-        question: normalizedQuestion,
-        intent: classification.intent,
-        sources,
-        context: buildContext(classification.intent, sources),
-      })
-
-      return {
-        intent: classification.intent,
-        answer: answer || selection.summary || fallbackAnswer(classification.intent, sources),
-        sources,
-      }
-    } catch {
-      return {
-        intent: classification.intent,
-        answer: selection.summary || fallbackAnswer(classification.intent, sources),
-        sources,
-      }
-    }
+    return finalizeIntentResponse(runtime, {
+      question: normalizedQuestion,
+      intent: classification.intent,
+      sources,
+      knowledgeSources,
+      knowledge: knowledgeContext,
+    })
   }
 
   if (classification.intent === "visit_preparation") {
@@ -819,11 +851,12 @@ export async function resolveAssistantQuery(
     const match = findVisitPreparation(preparations, members, normalizedQuestion)
 
     if (!match) {
-      return {
+      return respondNoMatch(runtime, {
+        question: normalizedQuestion,
         intent: classification.intent,
-        answer: NO_RESULT_MESSAGE,
-        sources: [],
-      }
+        knowledgeSources,
+        knowledge: knowledgeContext,
+      })
     }
 
     const sources: AssistantSource[] = [
@@ -834,26 +867,13 @@ export async function resolveAssistantQuery(
       },
     ]
 
-    try {
-      const answer = await runtime.summarizeAnswer({
-        question: normalizedQuestion,
-        intent: classification.intent,
-        sources,
-        context: buildContext(classification.intent, sources),
-      })
-
-      return {
-        intent: classification.intent,
-        answer: answer || fallbackAnswer(classification.intent, sources),
-        sources,
-      }
-    } catch {
-      return {
-        intent: classification.intent,
-        answer: fallbackAnswer(classification.intent, sources),
-        sources,
-      }
-    }
+    return finalizeIntentResponse(runtime, {
+      question: normalizedQuestion,
+      intent: classification.intent,
+      sources,
+      knowledgeSources,
+      knowledge: knowledgeContext,
+    })
   }
 
   return {

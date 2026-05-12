@@ -5,6 +5,7 @@ import {
   ArrowUpRightIcon,
   BellIcon,
   BotIcon,
+  BookOpenTextIcon,
   ChevronDownIcon,
   ClipboardListIcon,
   FileTextIcon,
@@ -36,6 +37,7 @@ const primaryNavigation = [
   { href: "/records", label: "病历记录", icon: FileTextIcon },
   { href: "/medicines", label: "用药管理", icon: PillIcon },
   { href: "/assistant", label: "就医助手", icon: BotIcon },
+  { href: "/knowledge", label: "知识库", icon: BookOpenTextIcon },
   { href: "/members", label: "健康档案", icon: UsersIcon },
 ]
 

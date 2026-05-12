@@ -9,22 +9,70 @@ describe("assistant service", () => {
   const ctx: RepositoryContext = { userId: DEFAULT_DEVELOPMENT_USER.id }
 
   it("returns a source-backed answer for a cold question", async () => {
+    let capturedContext = ""
     const result = await resolveAssistantQuery(ctx, "我上次什么时候感冒", {
       classifyQuestion: async () => ({
         intent: "recent_cold_record",
         reason: "命中感冒问题",
       }),
       selectMedicines: async () => ({ selectedIds: [], summary: "", reason: "" }),
-      summarizeAnswer: async ({ intent, question }) => `${intent}:${question}`,
+      summarizeAnswer: async ({ intent, question, context }) => {
+        capturedContext = context
+        return `${intent}:${question}`
+      },
       listMembers: async () => members,
       listMedicalRecords: async () => medicalRecords,
       listMedicines: async () => medicines,
+      searchKnowledgeDocuments: async () => [
+        {
+          document: {
+            id: "knowledge-fever-care",
+            userId: ctx.userId,
+            title: "发热与退烧药注意事项",
+            category: "用药提醒",
+            source: "家庭整理",
+            content: "发热时优先观察体温，不建议重复叠加同类退烧药。",
+            createdAt: "2026-04-21T08:00:00.000Z",
+            updatedAt: "2026-04-21T08:00:00.000Z",
+            chunks: [
+              {
+                id: "knowledge-fever-care-chunk-1",
+                userId: ctx.userId,
+                documentId: "knowledge-fever-care",
+                chunkIndex: 0,
+                content: "发热时优先观察体温，不建议重复叠加同类退烧药。",
+                keywords: ["发热", "退烧药"],
+                createdAt: "2026-04-21T08:00:00.000Z",
+                updatedAt: "2026-04-21T08:00:00.000Z",
+                score: 6,
+              },
+            ],
+          },
+          chunks: [
+            {
+              id: "knowledge-fever-care-chunk-1",
+              userId: ctx.userId,
+              documentId: "knowledge-fever-care",
+              chunkIndex: 0,
+              content: "发热时优先观察体温，不建议重复叠加同类退烧药。",
+              keywords: ["发热", "退烧药"],
+              createdAt: "2026-04-21T08:00:00.000Z",
+              updatedAt: "2026-04-21T08:00:00.000Z",
+              score: 6,
+            },
+          ],
+          relevance: 12,
+        },
+      ],
     })
 
     assert.equal(result.intent, "recent_cold_record")
     assert.equal(result.answer, "recent_cold_record:我上次什么时候感冒")
     assert.ok(result.sources.some((source) => source.label.includes("病历")))
     assert.equal(result.sources[0]?.memberId, "member-cp")
+    assert.ok(result.sources.some((source) => source.label.startsWith("知识库 ·")))
+    assert.ok(capturedContext.includes("发热与退烧药注意事项"))
+    assert.ok(capturedContext.includes("发热时优先观察体温"))
   })
 
   it("returns a friendly hint for unsupported questions", async () => {
@@ -51,17 +99,86 @@ describe("assistant service", () => {
         askedMedicines = true
         return medicines
       },
+      searchKnowledgeDocuments: async () => [],
     })
 
     assert.equal(result.intent, "unsupported")
     assert.equal(result.answer, "")
     assert.equal(
       result.message,
-      "这类问题我现在还不支持。你可以问我上次什么时候感冒、最近吃过哪些药、之前咳嗽看过几次、这个药和过敏史有没有冲突、我之前对哪些药有过不适、布洛芬怎么吃、家里有哪些抗过敏药、两种药能不能一起吃、过期药怎么处理，或者下次看医生前要准备什么。",
+      "这类问题我现在还不支持。你可以问我上次什么时候感冒、最近吃过哪些药、之前咳嗽看过几次、这个药和过敏史有没有冲突、我之前对哪些药有过不适、布洛芬怎么吃、家里有哪些抗过敏药、两种药能不能一起吃、过期药怎么处理、下次看医生前要准备什么，或者试试知识库里的家庭整理笔记。",
     )
     assert.equal(askedMembers, false)
     assert.equal(askedRecords, false)
     assert.equal(askedMedicines, false)
+  })
+
+  it("falls back to the knowledge base when structured routing is unsupported but documents match", async () => {
+    let capturedContext = ""
+    const result = await resolveAssistantQuery(ctx, "家里发热时该怎么处理？", {
+      classifyQuestion: async () => ({
+        intent: "unsupported",
+        reason: "没有命中结构化意图",
+      }),
+      selectMedicines: async () => ({ selectedIds: [], summary: "", reason: "" }),
+      summarizeAnswer: async ({ intent, context, sources }) => {
+        capturedContext = context
+        return `${intent}:${sources.map((source) => source.label).join("|")}`
+      },
+      listMembers: async () => members,
+      listAllergyRecords: async () => [],
+      listMedicalRecords: async () => medicalRecords,
+      listMedicines: async () => medicines,
+      listVisitPreparations: async () => [],
+      searchKnowledgeDocuments: async () => [
+        {
+          document: {
+            id: "knowledge-fever-care",
+            userId: ctx.userId,
+            title: "发热与退烧药注意事项",
+            category: "用药提醒",
+            source: "家庭整理",
+            content: "发热时优先观察体温，不建议重复叠加同类退烧药。",
+            createdAt: "2026-04-21T08:00:00.000Z",
+            updatedAt: "2026-04-21T08:00:00.000Z",
+            chunks: [
+              {
+                id: "knowledge-fever-care-chunk-1",
+                userId: ctx.userId,
+                documentId: "knowledge-fever-care",
+                chunkIndex: 0,
+                content: "发热时优先观察体温，不建议重复叠加同类退烧药。",
+                keywords: ["发热", "退烧药"],
+                createdAt: "2026-04-21T08:00:00.000Z",
+                updatedAt: "2026-04-21T08:00:00.000Z",
+                score: 6,
+              },
+            ],
+          },
+          chunks: [
+            {
+              id: "knowledge-fever-care-chunk-1",
+              userId: ctx.userId,
+              documentId: "knowledge-fever-care",
+              chunkIndex: 0,
+              content: "发热时优先观察体温，不建议重复叠加同类退烧药。",
+              keywords: ["发热", "退烧药"],
+              createdAt: "2026-04-21T08:00:00.000Z",
+              updatedAt: "2026-04-21T08:00:00.000Z",
+              score: 6,
+            },
+          ],
+          relevance: 12,
+        },
+      ],
+    })
+
+    assert.equal(result.intent, "knowledge_base")
+    assert.equal(result.answer, "knowledge_base:知识库 · 发热与退烧药注意事项")
+    assert.equal(result.message, undefined)
+    assert.ok(result.sources.some((source) => source.label === "知识库 · 发热与退烧药注意事项"))
+    assert.ok(capturedContext.includes("knowledge_base"))
+    assert.ok(capturedContext.includes("发热时优先观察体温"))
   })
 
   it("routes allergy history questions to the allergy flow", async () => {
@@ -87,6 +204,7 @@ describe("assistant service", () => {
       ],
       listMedicalRecords: async () => medicalRecords,
       listMedicines: async () => medicines,
+      searchKnowledgeDocuments: async () => [],
     })
 
     assert.equal(result.intent, "allergy_history")
@@ -107,6 +225,7 @@ describe("assistant service", () => {
       listAllergyRecords: async () => [],
       listMedicalRecords: async () => medicalRecords,
       listMedicines: async () => medicines,
+      searchKnowledgeDocuments: async () => [],
     })
 
     assert.equal(result.intent, "medicine_usage")
@@ -127,6 +246,7 @@ describe("assistant service", () => {
       listAllergyRecords: async () => [],
       listMedicalRecords: async () => medicalRecords,
       listMedicines: async () => medicines,
+      searchKnowledgeDocuments: async () => [],
     })
 
     assert.equal(result.intent, "medicine_interaction")
@@ -160,6 +280,7 @@ describe("assistant service", () => {
           expiresAt: "2027-02-28",
         },
       ],
+      searchKnowledgeDocuments: async () => [],
     })
 
     assert.equal(result.intent, "medicine_disposal")
@@ -180,6 +301,7 @@ describe("assistant service", () => {
       listAllergyRecords: async () => [],
       listMedicalRecords: async () => medicalRecords,
       listMedicines: async () => medicines,
+      searchKnowledgeDocuments: async () => [],
     })
 
     assert.equal(result.intent, "recent_medicine_history")
@@ -199,6 +321,7 @@ describe("assistant service", () => {
       listAllergyRecords: async () => [],
       listMedicalRecords: async () => medicalRecords,
       listMedicines: async () => medicines,
+      searchKnowledgeDocuments: async () => [],
     })
 
     assert.equal(result.intent, "symptom_history")
@@ -229,6 +352,7 @@ describe("assistant service", () => {
       ],
       listMedicalRecords: async () => medicalRecords,
       listMedicines: async () => medicines,
+      searchKnowledgeDocuments: async () => [],
     })
 
     assert.equal(result.intent, "medicine_allergy_conflict")
@@ -251,6 +375,7 @@ describe("assistant service", () => {
       listMembers: async () => members,
       listMedicalRecords: async () => medicalRecords,
       listMedicines: async () => medicines,
+      searchKnowledgeDocuments: async () => [],
     })
 
     assert.equal(result.intent, "medicine_query")
@@ -279,6 +404,7 @@ describe("assistant service", () => {
           questions: ["当前咳嗽是否需要进一步检查？"],
         },
       ],
+      searchKnowledgeDocuments: async () => [],
     })
 
     assert.equal(result.intent, "visit_preparation")
@@ -310,6 +436,7 @@ describe("assistant service", () => {
         seen.push(receivedCtx.userId)
         return medicines
       },
+      searchKnowledgeDocuments: async () => [],
     })
 
     assert.equal(result.answer, "sources:1")
