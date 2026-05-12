@@ -517,6 +517,15 @@ export async function resolveAssistantQuery(
     })
   }
 
+  if (classification.intent === "knowledge_base") {
+    return respondNoMatch(runtime, {
+      question: normalizedQuestion,
+      intent: "knowledge_base",
+      knowledgeSources,
+      knowledge: knowledgeContext,
+    })
+  }
+
   if (classification.intent === "recent_cold_record") {
     const [members, records] = await Promise.all([runtime.listMembers(ctx), runtime.listMedicalRecords(ctx)])
     const match = findRecentColdRecord(records, members)

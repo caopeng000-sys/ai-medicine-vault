@@ -181,6 +181,64 @@ describe("assistant service", () => {
     assert.ok(capturedContext.includes("发热时优先观察体温"))
   })
 
+  it("handles direct knowledge base classifications when documents match", async () => {
+    const result = await resolveAssistantQuery(ctx, "家里发热时该怎么处理？", {
+      classifyQuestion: async () => ({
+        intent: "knowledge_base",
+        reason: "模型直接命中了知识库意图",
+      }),
+      selectMedicines: async () => ({ selectedIds: [], summary: "", reason: "" }),
+      summarizeAnswer: async ({ intent, sources }) => `${intent}:${sources.map((source) => source.label).join("|")}`,
+      listMembers: async () => members,
+      listAllergyRecords: async () => [],
+      listMedicalRecords: async () => medicalRecords,
+      listMedicines: async () => medicines,
+      listVisitPreparations: async () => [],
+      searchKnowledgeDocuments: async () => [
+        {
+          document: {
+            id: "knowledge-fever-care",
+            userId: ctx.userId,
+            title: "发热与退烧药注意事项",
+            category: "用药提醒",
+            source: "家庭整理",
+            content: "发热时优先观察体温，不建议重复叠加同类退烧药。",
+            createdAt: "2026-04-21T08:00:00.000Z",
+            updatedAt: "2026-04-21T08:00:00.000Z",
+            chunks: [
+              {
+                id: "knowledge-fever-care-chunk-1",
+                userId: ctx.userId,
+                documentId: "knowledge-fever-care",
+                chunkIndex: 0,
+                content: "发热时优先观察体温，不建议重复叠加同类退烧药。",
+                keywords: ["发热", "退烧药"],
+                createdAt: "2026-04-21T08:00:00.000Z",
+                updatedAt: "2026-04-21T08:00:00.000Z",
+              },
+            ],
+          },
+          chunks: [
+            {
+              id: "knowledge-fever-care-chunk-1",
+              userId: ctx.userId,
+              documentId: "knowledge-fever-care",
+              chunkIndex: 0,
+              content: "发热时优先观察体温，不建议重复叠加同类退烧药。",
+              keywords: ["发热", "退烧药"],
+              createdAt: "2026-04-21T08:00:00.000Z",
+              updatedAt: "2026-04-21T08:00:00.000Z",
+            },
+          ],
+          relevance: 12,
+        },
+      ],
+    })
+
+    assert.equal(result.intent, "knowledge_base")
+    assert.ok(result.sources.some((source) => source.label.startsWith("知识库 ·")))
+  })
+
   it("routes allergy history questions to the allergy flow", async () => {
     const result = await resolveAssistantQuery(ctx, "我之前对哪些药有过不适？", {
       classifyQuestion: async () => ({
