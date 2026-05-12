@@ -4,6 +4,8 @@ import type { AllergySeverity } from "@prisma/client"
 import type { RepositoryContext } from "@/features/medicine-vault/auth-context"
 import type {
   AllergyRecord,
+  KnowledgeChunk,
+  KnowledgeDocument,
   MedicalRecordAttachment,
   MedicalRecord,
   Member,
@@ -12,6 +14,8 @@ import type {
 } from "@/features/medicine-vault/data"
 import {
   allergyRecords as mockAllergyRecords,
+  knowledgeChunks as mockKnowledgeChunks,
+  knowledgeDocuments as mockKnowledgeDocuments,
   medicalRecords as mockMedicalRecords,
   members as mockMembers,
   medicines as mockMedicines,
@@ -34,6 +38,7 @@ import {
 import type {
   CreateAllergyRecordInput,
   CreateMedicalRecordInput,
+  CreateKnowledgeDocumentInput,
   CreateMemberInput,
   CreateMedicineInput,
   UpdateMemberInput,
@@ -79,6 +84,20 @@ export type CreateMedicalRecordAttachmentInput = Readonly<{
   kind: string
   note: string
   aiMetadata?: MedicalRecordAttachmentAiMetadata
+}>
+
+export type KnowledgeDocumentWithChunks = KnowledgeDocument & {
+  chunks: KnowledgeChunk[]
+}
+
+export type KnowledgeChunkMatch = KnowledgeChunk & {
+  score: number
+}
+
+export type KnowledgeSearchResult = Readonly<{
+  document: KnowledgeDocumentWithChunks
+  chunks: KnowledgeChunkMatch[]
+  relevance: number
 }>
 
 export { DEFAULT_MEDICINE_PAGE_SIZE } from "@/features/medicine-vault/medicine-pagination"
@@ -311,6 +330,177 @@ function splitHospitalField(value: string) {
 
 function fallbackText(value: string | undefined, fallback: string) {
   return value?.trim() || fallback
+}
+
+function cloneKnowledgeDocument(document: KnowledgeDocument): KnowledgeDocument {
+  return { ...document }
+}
+
+function cloneKnowledgeChunk(chunk: KnowledgeChunk): KnowledgeChunk {
+  return { ...chunk, keywords: [...chunk.keywords] }
+}
+
+let mockKnowledgeDocumentStore = mockKnowledgeDocuments.map(cloneKnowledgeDocument)
+let mockKnowledgeChunkStore = mockKnowledgeChunks.map(cloneKnowledgeChunk)
+
+function resetKnowledgeMockStore() {
+  mockKnowledgeDocumentStore = mockKnowledgeDocuments.map(cloneKnowledgeDocument)
+  mockKnowledgeChunkStore = mockKnowledgeChunks.map(cloneKnowledgeChunk)
+}
+
+function getMockKnowledgeDocumentsWithChunks(ctx: RepositoryContext) {
+  const documents = mockKnowledgeDocumentStore
+    .filter((document) => document.userId === ctx.userId)
+    .map((document) => ({
+      ...cloneKnowledgeDocument(document),
+      chunks: mockKnowledgeChunkStore
+        .filter((chunk) => chunk.userId === ctx.userId && chunk.documentId === document.id)
+        .toSorted((a, b) => a.chunkIndex - b.chunkIndex)
+        .map(cloneKnowledgeChunk),
+    }))
+
+  return documents.toSorted((a, b) => b.createdAt.localeCompare(a.createdAt))
+}
+
+function normalizeKnowledgeText(value: string) {
+  return value.trim().toLowerCase()
+}
+
+function tokenizeKnowledgeQuestion(question: string) {
+  return [...new Set(question.split(/[\s,，。！？!?;；:：/\\]+/).map((item) => item.trim()).filter(Boolean))]
+}
+
+function scoreKnowledgeText(text: string, tokens: string[]) {
+  const normalized = normalizeKnowledgeText(text)
+
+  return tokens.reduce((score, token) => {
+    const normalizedToken = normalizeKnowledgeText(token)
+
+    if (!normalizedToken) {
+      return score
+    }
+
+    return normalized.includes(normalizedToken) ? score + 1 : score
+  }, 0)
+}
+
+function splitKnowledgeContent(content: string) {
+  const normalized = content.trim().replace(/\r\n/g, "\n")
+  const paragraphs = normalized.split(/\n+/).map((item) => item.trim()).filter(Boolean)
+  const chunks: string[] = []
+
+  for (const paragraph of paragraphs) {
+    if (paragraph.length <= 180) {
+      chunks.push(paragraph)
+      continue
+    }
+
+    const sentences = paragraph.split(/(?<=[。！？!?])/).map((item) => item.trim()).filter(Boolean)
+    let current = ""
+
+    for (const sentence of sentences) {
+      if (!current) {
+        current = sentence
+        continue
+      }
+
+      if ((current + sentence).length > 180) {
+        chunks.push(current)
+        current = sentence
+      } else {
+        current += sentence
+      }
+    }
+
+    if (current) {
+      chunks.push(current)
+    }
+  }
+
+  if (!chunks.length) {
+    return [normalized.slice(0, 180)]
+  }
+
+  return chunks
+}
+
+function deriveChunkKeywords(document: KnowledgeDocument, chunkContent: string) {
+  const keywords = [
+    document.title,
+    document.category,
+    document.source,
+    ...chunkContent.split(/[\s,，。！？!?;；:：/\\]+/),
+  ]
+    .map((item) => item.trim())
+    .filter((item) => item.length >= 2)
+
+  return [...new Set(keywords)].slice(0, 8)
+}
+
+function createMockKnowledgeDocumentWithChunks(ctx: RepositoryContext, input: CreateKnowledgeDocumentInput) {
+  const documentId = `knowledge-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  const now = new Date().toISOString()
+  const document: KnowledgeDocument = {
+    id: documentId,
+    userId: ctx.userId,
+    title: input.title,
+    category: input.category,
+    source: input.source,
+    content: input.content,
+    createdAt: now,
+    updatedAt: now,
+  }
+  const chunks = splitKnowledgeContent(input.content).map((chunkContent, index) => ({
+    id: `${documentId}-chunk-${index}`,
+    userId: ctx.userId,
+    documentId,
+    chunkIndex: index,
+    content: chunkContent,
+    keywords: deriveChunkKeywords(document, chunkContent),
+    createdAt: now,
+    updatedAt: now,
+  }))
+
+  mockKnowledgeDocumentStore.push(document)
+  mockKnowledgeChunkStore.push(...chunks)
+
+  return {
+    ...cloneKnowledgeDocument(document),
+    chunks: chunks.map(cloneKnowledgeChunk),
+  }
+}
+
+function getKnowledgeScoredDocuments(ctx: RepositoryContext, question: string) {
+  const tokens = tokenizeKnowledgeQuestion(question)
+  const documents = getMockKnowledgeDocumentsWithChunks(ctx)
+
+  return documents
+    .map((document) => {
+      const documentScore =
+        scoreKnowledgeText(document.title, tokens) * 5 +
+        scoreKnowledgeText(document.category, tokens) * 3 +
+        scoreKnowledgeText(document.source, tokens) * 2 +
+        scoreKnowledgeText(document.content, tokens)
+      const chunks = document.chunks
+        .map((chunk) => ({
+          ...chunk,
+          score:
+            scoreKnowledgeText(chunk.content, tokens) * 3 +
+            scoreKnowledgeText(chunk.keywords.join(" "), tokens) * 2,
+        }))
+        .filter((chunk) => chunk.score > 0)
+        .toSorted((a, b) => b.score - a.score || a.chunkIndex - b.chunkIndex)
+
+      const relevance = documentScore + chunks.reduce((sum, chunk) => sum + chunk.score, 0)
+
+      return {
+        document,
+        chunks,
+        relevance,
+      }
+    })
+    .filter((item) => item.relevance > 0)
+    .toSorted((a, b) => b.relevance - a.relevance || b.document.createdAt.localeCompare(a.document.createdAt))
 }
 
 export function isDatabaseConfigured() {
@@ -680,6 +870,238 @@ export async function listVisitPreparations(ctx: RepositoryContext, memberId?: s
       .filter((item) => item.userId === ctx.userId)
       .filter((item) => (memberId ? item.memberId === memberId : true))
   }
+}
+
+function mapKnowledgeDocument(document: {
+  id: string
+  userId: string
+  title: string
+  category: string
+  source: string
+  content: string
+  createdAt: Date
+  updatedAt: Date
+  chunks?: Array<{
+    id: string
+    userId: string
+    documentId: string
+    chunkIndex: number
+    content: string
+    keywords: string[]
+    createdAt: Date
+    updatedAt: Date
+  }>
+}): KnowledgeDocumentWithChunks {
+  return {
+    id: document.id,
+    userId: document.userId,
+    title: document.title,
+    category: document.category,
+    source: document.source,
+    content: document.content,
+    createdAt: document.createdAt.toISOString(),
+    updatedAt: document.updatedAt.toISOString(),
+    chunks:
+      document.chunks?.map((chunk) => ({
+        id: chunk.id,
+        userId: chunk.userId,
+        documentId: chunk.documentId,
+        chunkIndex: chunk.chunkIndex,
+        content: chunk.content,
+        keywords: [...chunk.keywords],
+        createdAt: chunk.createdAt.toISOString(),
+        updatedAt: chunk.updatedAt.toISOString(),
+      })) ?? [],
+  }
+}
+
+export async function listKnowledgeDocuments(ctx: RepositoryContext) {
+  const prisma = getPrismaClient()
+
+  if (!prisma) {
+    return getMockKnowledgeDocumentsWithChunks(ctx)
+  }
+
+  try {
+    const documents = await prisma.knowledgeDocument.findMany({
+      where: { userId: ctx.userId },
+      include: {
+        chunks: {
+          orderBy: { chunkIndex: "asc" },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    })
+
+    return documents.map(mapKnowledgeDocument)
+  } catch {
+    return getMockKnowledgeDocumentsWithChunks(ctx)
+  }
+}
+
+export async function createKnowledgeDocument(ctx: RepositoryContext, input: CreateKnowledgeDocumentInput) {
+  const prisma = getPrismaClient()
+  const chunks = splitKnowledgeContent(input.content).map((chunkContent, index) => ({
+    chunkIndex: index,
+    content: chunkContent,
+    keywords: deriveChunkKeywords(
+      {
+        id: "",
+        userId: ctx.userId,
+        title: input.title,
+        category: input.category,
+        source: input.source,
+        content: input.content,
+        createdAt: "",
+        updatedAt: "",
+      },
+      chunkContent,
+    ),
+  }))
+
+  if (!prisma) {
+    return createMockKnowledgeDocumentWithChunks(ctx, input)
+  }
+
+  try {
+    const document = await prisma.knowledgeDocument.create({
+      data: {
+        userId: ctx.userId,
+        title: input.title,
+        category: input.category,
+        source: input.source,
+        content: input.content,
+        chunks: {
+          create: chunks.map((chunk) => ({
+            userId: ctx.userId,
+            chunkIndex: chunk.chunkIndex,
+            content: chunk.content,
+            keywords: chunk.keywords,
+          })),
+        },
+      },
+      include: {
+        chunks: {
+          orderBy: { chunkIndex: "asc" },
+        },
+      },
+    })
+
+    return mapKnowledgeDocument(document)
+  } catch {
+    return createMockKnowledgeDocumentWithChunks(ctx, input)
+  }
+}
+
+export async function deleteKnowledgeDocument(ctx: RepositoryContext, documentId: string) {
+  const prisma = getPrismaClient()
+
+  if (!prisma) {
+    const existingDocument = mockKnowledgeDocumentStore.find(
+      (document) => document.id === documentId && document.userId === ctx.userId,
+    )
+
+    if (!existingDocument) {
+      throw new Error("知识文档不存在或不属于当前用户。")
+    }
+
+    const removedChunks = mockKnowledgeChunkStore.filter(
+      (chunk) => chunk.documentId === documentId && chunk.userId === ctx.userId,
+    )
+    mockKnowledgeDocumentStore = mockKnowledgeDocumentStore.filter((document) => document.id !== documentId)
+    mockKnowledgeChunkStore = mockKnowledgeChunkStore.filter((chunk) => chunk.documentId !== documentId)
+
+    return {
+      ...cloneKnowledgeDocument(existingDocument),
+      chunks: removedChunks.map(cloneKnowledgeChunk).toSorted((a, b) => a.chunkIndex - b.chunkIndex),
+    }
+  }
+
+  try {
+    const existingDocument = await prisma.knowledgeDocument.findFirst({
+      where: {
+        id: documentId,
+        userId: ctx.userId,
+      },
+      include: {
+        chunks: {
+          orderBy: { chunkIndex: "asc" },
+        },
+      },
+    })
+
+    if (!existingDocument) {
+      throw new Error("知识文档不存在或不属于当前用户。")
+    }
+
+    const deleted = await prisma.knowledgeDocument.delete({
+      where: { id: documentId },
+      include: {
+        chunks: {
+          orderBy: { chunkIndex: "asc" },
+        },
+      },
+    })
+
+    return mapKnowledgeDocument(deleted)
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("不属于当前用户")) {
+      throw error
+    }
+
+    throw error
+  }
+}
+
+export async function searchKnowledgeDocuments(ctx: RepositoryContext, question: string, limit = 5) {
+  const prisma = getPrismaClient()
+  const cappedLimit = Math.max(1, Math.min(20, Math.trunc(limit) || 5))
+
+  const scoredDocuments = prisma
+    ? await (async () => {
+        try {
+          const documents = await prisma.knowledgeDocument.findMany({
+            where: { userId: ctx.userId },
+            include: {
+              chunks: {
+                orderBy: { chunkIndex: "asc" },
+              },
+            },
+            orderBy: { createdAt: "desc" },
+          })
+
+          const tokens = tokenizeKnowledgeQuestion(question)
+
+          return documents
+            .map((document) => {
+              const mapped = mapKnowledgeDocument(document)
+              const documentScore =
+                scoreKnowledgeText(mapped.title, tokens) * 5 +
+                scoreKnowledgeText(mapped.category, tokens) * 3 +
+                scoreKnowledgeText(mapped.source, tokens) * 2 +
+                scoreKnowledgeText(mapped.content, tokens)
+              const chunks = mapped.chunks
+                .map((chunk) => ({
+                  ...chunk,
+                  score:
+                    scoreKnowledgeText(chunk.content, tokens) * 3 +
+                    scoreKnowledgeText(chunk.keywords.join(" "), tokens) * 2,
+                }))
+                .filter((chunk) => chunk.score > 0)
+                .toSorted((a, b) => b.score - a.score || a.chunkIndex - b.chunkIndex)
+              const relevance = documentScore + chunks.reduce((sum, chunk) => sum + chunk.score, 0)
+
+              return { document: mapped, chunks, relevance }
+            })
+            .filter((item) => item.relevance > 0)
+            .toSorted((a, b) => b.relevance - a.relevance || b.document.createdAt.localeCompare(a.document.createdAt))
+        } catch {
+          return getKnowledgeScoredDocuments(ctx, question)
+        }
+      })()
+    : getKnowledgeScoredDocuments(ctx, question)
+
+  return scoredDocuments.slice(0, cappedLimit)
 }
 
 export async function logAiCall(ctx: RepositoryContext, input: AiCallLogInput) {

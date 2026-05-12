@@ -83,6 +83,28 @@ export type VisitPreparation = {
   questions: string[]
 }
 
+export type KnowledgeDocument = {
+  id: string
+  userId: string
+  title: string
+  category: string
+  source: string
+  content: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type KnowledgeChunk = {
+  id: string
+  userId: string
+  documentId: string
+  chunkIndex: number
+  content: string
+  keywords: string[]
+  createdAt: string
+  updatedAt: string
+}
+
 export const DEVELOPMENT_USER_ID = "user-development"
 
 export const members: Member[] = [
@@ -383,6 +405,74 @@ export const visitPreparations: VisitPreparation[] = [
       "过敏性鼻炎是否可能加重当前症状？",
       "青霉素疑似过敏是否需要补充过敏原检查？",
     ],
+  },
+]
+
+export const knowledgeDocuments: KnowledgeDocument[] = [
+  {
+    id: "knowledge-penicillin",
+    userId: DEVELOPMENT_USER_ID,
+    title: "青霉素疑似过敏处理",
+    category: "过敏史",
+    source: "家庭整理",
+    content:
+      "使用青霉素后若出现皮疹、瘙痒、胸闷或呼吸不适，应立即停止用药并尽快告知医生。就诊时要主动说明既往疑似过敏经过、出现症状的时间和曾用药名称，方便医生判断后续是否需要做过敏评估。",
+    createdAt: "2026-04-20T08:00:00.000Z",
+    updatedAt: "2026-04-20T08:00:00.000Z",
+  },
+  {
+    id: "knowledge-fever-care",
+    userId: DEVELOPMENT_USER_ID,
+    title: "发热与退烧药注意事项",
+    category: "用药提醒",
+    source: "家庭整理",
+    content:
+      "发热时优先观察体温、精神状态和伴随症状，不建议重复叠加同类退烧药。布洛芬或对乙酰氨基酚等药物需要先确认剂量、服用间隔和是否存在胃部不适、肝肾疾病等风险；如果高热持续、喘憋或精神状态变差，应及时复诊。",
+    createdAt: "2026-04-21T08:00:00.000Z",
+    updatedAt: "2026-04-21T08:00:00.000Z",
+  },
+]
+
+export const knowledgeChunks: KnowledgeChunk[] = [
+  {
+    id: "knowledge-penicillin-chunk-1",
+    userId: DEVELOPMENT_USER_ID,
+    documentId: "knowledge-penicillin",
+    chunkIndex: 0,
+    content: "使用青霉素后若出现皮疹、瘙痒、胸闷或呼吸不适，应立即停止用药并尽快告知医生。",
+    keywords: ["青霉素", "过敏", "皮疹", "呼吸不适"],
+    createdAt: "2026-04-20T08:00:00.000Z",
+    updatedAt: "2026-04-20T08:00:00.000Z",
+  },
+  {
+    id: "knowledge-penicillin-chunk-2",
+    userId: DEVELOPMENT_USER_ID,
+    documentId: "knowledge-penicillin",
+    chunkIndex: 1,
+    content: "就诊时要主动说明既往疑似过敏经过、出现症状的时间和曾用药名称，方便医生判断后续是否需要做过敏评估。",
+    keywords: ["就诊", "过敏评估", "用药名称"],
+    createdAt: "2026-04-20T08:00:00.000Z",
+    updatedAt: "2026-04-20T08:00:00.000Z",
+  },
+  {
+    id: "knowledge-fever-care-chunk-1",
+    userId: DEVELOPMENT_USER_ID,
+    documentId: "knowledge-fever-care",
+    chunkIndex: 0,
+    content: "发热时优先观察体温、精神状态和伴随症状，不建议重复叠加同类退烧药。",
+    keywords: ["发热", "退烧药", "体温"],
+    createdAt: "2026-04-21T08:00:00.000Z",
+    updatedAt: "2026-04-21T08:00:00.000Z",
+  },
+  {
+    id: "knowledge-fever-care-chunk-2",
+    userId: DEVELOPMENT_USER_ID,
+    documentId: "knowledge-fever-care",
+    chunkIndex: 1,
+    content: "布洛芬或对乙酰氨基酚等药物需要先确认剂量、服用间隔和是否存在胃部不适、肝肾疾病等风险。",
+    keywords: ["布洛芬", "对乙酰氨基酚", "剂量", "间隔"],
+    createdAt: "2026-04-21T08:00:00.000Z",
+    updatedAt: "2026-04-21T08:00:00.000Z",
   },
 ]
 

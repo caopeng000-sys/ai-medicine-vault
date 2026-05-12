@@ -3,6 +3,9 @@ import { describe, it } from "node:test"
 
 import { createAllergiesHandler } from "./allergies/route"
 import { createAssistantQueryHandler } from "./assistant/query/route"
+import { createKnowledgeDeleteHandler } from "./knowledge/[documentId]/route"
+import { createKnowledgeListHandler } from "./knowledge/route"
+import { createKnowledgeHandler } from "./knowledge/route"
 import { createMedicineImageHandler } from "./medicines/[medicineId]/image/route"
 import { createMedicineDetailHandlers } from "./medicines/[medicineId]/route"
 import { createMedicineExtractHandler } from "./medicines/extract/route"
@@ -310,6 +313,44 @@ describe("write route safety hardening", () => {
         },
       ),
     )
+  })
+
+  describe("knowledge routes", () => {
+    it("returns 401 when unauthenticated on list", async () => {
+      const handler = createKnowledgeListHandler(undefined, async () => {
+        throw AUTH_ERROR
+      })
+
+      const response = await handler(createGetRequest("http://localhost/api/knowledge"))
+      const payload = await readPayload(response)
+
+      assert.equal(response.status, 401)
+      assert.match(payload.message, /请先登录|拒绝访问/)
+    })
+
+    it("returns 400 for invalid create payloads", async () => {
+      const handler = createKnowledgeHandler(undefined, async () => ({ userId: "user-1" }))
+
+      const response = await handler(createJsonRequest({ title: "", category: "", source: "", content: "" }))
+      const payload = await readPayload(response)
+
+      assert.equal(response.status, 400)
+      assert.match(payload.message, /请填写标题|请填写分类|请填写来源|请填写内容/)
+    })
+
+    it("returns 401 when unauthenticated on delete", async () => {
+      const { DELETE } = createKnowledgeDeleteHandler({
+        getContext: async () => {
+          throw AUTH_ERROR
+        },
+      })
+
+      const response = await DELETE(createJsonRequest({}), { params: Promise.resolve({ documentId: "doc-1" }) })
+      const payload = await readPayload(response)
+
+      assert.equal(response.status, 401)
+      assert.match(payload.message, /请先登录|拒绝访问/)
+    })
   })
 
   describe("member detail routes", () => {

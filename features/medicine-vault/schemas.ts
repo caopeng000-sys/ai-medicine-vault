@@ -56,6 +56,13 @@ export const createAllergyRecordSchema = z.object({
   note: z.string().trim().default(""),
 })
 
+export const createKnowledgeDocumentSchema = z.object({
+  title: z.string().trim().min(1, "请填写标题。"),
+  category: z.string().trim().min(1, "请填写分类。"),
+  source: z.string().trim().min(1, "请填写来源。"),
+  content: z.string().trim().min(1, "请填写内容。"),
+})
+
 export const extractedMedicineSchema = z.object({
   name: z.string().trim().default(""),
   category: z.string().trim().default(""),
@@ -77,4 +84,5 @@ export type UpdateMemberInput = z.infer<typeof updateMemberSchema>
 export type CreateMedicalRecordInput = z.infer<typeof createMedicalRecordSchema>
 export type CreateMedicineInput = z.infer<typeof createMedicineSchema>
 export type CreateAllergyRecordInput = z.infer<typeof createAllergyRecordSchema>
+export type CreateKnowledgeDocumentInput = z.infer<typeof createKnowledgeDocumentSchema>
 export type ExtractedMedicineData = z.infer<typeof extractedMedicineSchema>

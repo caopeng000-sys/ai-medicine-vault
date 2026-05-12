@@ -34,6 +34,8 @@ model User {
   medicines         Medicine[]
   allergyRecords    AllergyRecord[]
   visitPreparations VisitPreparation[]
+  knowledgeDocuments KnowledgeDocument[]
+  knowledgeChunks   KnowledgeChunk[]
 }
 
 model Account {
@@ -195,6 +197,40 @@ model VisitPreparation {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, memberId, createdAt(sort: Desc)])
+}
+
+model KnowledgeDocument {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  category  String
+  source    String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  chunks    KnowledgeChunk[]
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, title])
+  @@index([userId, category])
+  @@index([userId, source])
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+model KnowledgeChunk {
+  id         String   @id @default(cuid())
+  userId     String
+  documentId String
+  chunkIndex Int
+  content    String   @db.Text
+  keywords   String[] @default([])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  document   KnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, documentId, chunkIndex])
+  @@index([userId, createdAt(sort: Desc)])
 }
 
 model AiCallLog {
