@@ -3,7 +3,9 @@ import { afterEach, describe, it } from "node:test"
 
 import { DEFAULT_DEVELOPMENT_USER, type RepositoryContext } from "./auth-context"
 import {
+  createMedicalRecordAttachment,
   listAllergyRecords,
+  listMedicalRecordAttachments,
   listMedicalRecords,
   listMembers,
   listMedicines,
@@ -71,5 +73,21 @@ describe("listMedicinesPaginated", () => {
     assert.equal((await listMedicinesPaginated(otherCtx, { page: 1, pageSize: 6 })).total, 0)
     assert.equal((await listAllergyRecords(otherCtx)).length, 0)
     assert.equal((await listVisitPreparations(otherCtx)).length, 0)
+    assert.equal((await listMedicalRecordAttachments(otherCtx)).length, 0)
+  })
+})
+
+describe("medical record attachments", () => {
+  const defaultCtx: RepositoryContext = { userId: DEFAULT_DEVELOPMENT_USER.id }
+  it("lists mock attachments", async () => {
+    process.env.DATABASE_URL = ""
+    const attachments = await listMedicalRecordAttachments(defaultCtx)
+    assert.ok(attachments.length >= 2)
+  })
+  it("creates mock attachments", async () => {
+    process.env.DATABASE_URL = ""
+    const before = (await listMedicalRecordAttachments(defaultCtx)).length
+    await createMedicalRecordAttachment(defaultCtx, { memberId: "member-cp", extractedText: "临时化验单 OCR 文本" })
+    assert.equal((await listMedicalRecordAttachments(defaultCtx)).length, before + 1)
   })
 })

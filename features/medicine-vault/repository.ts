@@ -6,6 +6,7 @@ import type {
   AiConversationRecord,
   AllergyRecord,
   MedicalRecord,
+  MedicalRecordAttachment,
   Member,
   Medicine,
   VisitPreparation,
@@ -13,6 +14,7 @@ import type {
 import {
   aiConversations as mockAiConversations,
   allergyRecords as mockAllergyRecords,
+  medicalRecordAttachments as mockMedicalRecordAttachments,
   medicalRecords as mockMedicalRecords,
   members as mockMembers,
   medicines as mockMedicines,
@@ -25,11 +27,13 @@ import {
 } from "@/features/medicine-vault/medicine-pagination"
 import type {
   CreateAllergyRecordInput,
+  CreateMedicalRecordAttachmentInput,
   CreateMedicalRecordInput,
   CreateMemberInput,
   CreateMedicineInput,
   UpdateMemberInput,
 } from "@/features/medicine-vault/schemas"
+import type { MedicalAttachmentFile } from "@/features/medicine-vault/medical-attachment-request"
 import type { MedicineImageAttachment } from "@/features/medicine-vault/medicine-request"
 
 export type MedicinePageQuery = Readonly<{
@@ -79,6 +83,30 @@ function mapMember(member: {
     gender: member.gender,
     allergySummary: member.allergySummary,
     note: member.note,
+  }
+}
+
+function mapMedicalRecordAttachment(attachment: {
+  id: string
+  userId: string
+  memberId: string
+  medicalRecordId: string | null
+  fileName: string
+  mimeType: string
+  fileBytes?: Uint8Array | Buffer | null
+  extractedText: string
+  createdAt: Date
+}): MedicalRecordAttachment {
+  return {
+    id: attachment.id,
+    userId: attachment.userId,
+    memberId: attachment.memberId,
+    medicalRecordId: attachment.medicalRecordId ?? undefined,
+    fileName: attachment.fileName,
+    mimeType: attachment.mimeType,
+    extractedText: attachment.extractedText,
+    hasFile: Boolean(attachment.fileBytes?.length),
+    createdAt: attachment.createdAt.toISOString(),
   }
 }
 
@@ -372,6 +400,39 @@ export async function listMedicalRecords(ctx: RepositoryContext, memberId?: stri
       .filter((record) => record.userId === ctx.userId)
       .filter((record) => (memberId ? record.memberId === memberId : true))
       .toSorted((a, b) => b.visitedAt.localeCompare(a.visitedAt))
+  }
+}
+
+async function assertMedicalRecordBelongsToUser(ctx: RepositoryContext, medicalRecordId: string, memberId: string) {
+  const prisma = getPrismaClient()
+  if (!prisma) {
+    const record = mockMedicalRecords.find((item) => item.id === medicalRecordId && item.userId === ctx.userId && item.memberId === memberId)
+    if (!record) throw new Error("关联病历不存在或不属于当前用户。")
+    return
+  }
+  const record = await prisma.medicalRecord.findFirst({ where: { id: medicalRecordId, userId: ctx.userId, memberId }, select: { id: true } })
+  if (!record) throw new Error("关联病历不存在或不属于当前用户。")
+}
+
+export async function listMedicalRecordAttachments(ctx: RepositoryContext, memberId?: string) {
+  const prisma = getPrismaClient()
+  if (!prisma) {
+    return mockMedicalRecordAttachments
+      .filter((attachment) => attachment.userId === ctx.userId)
+      .filter((attachment) => (memberId ? attachment.memberId === memberId : true))
+      .toSorted((a, b) => b.createdAt.localeCompare(a.createdAt))
+  }
+  try {
+    const attachments = await prisma.medicalRecordAttachment.findMany({
+      where: { userId: ctx.userId, ...(memberId ? { memberId } : {}) },
+      orderBy: { createdAt: "desc" },
+    })
+    return attachments.map(mapMedicalRecordAttachment)
+  } catch {
+    return mockMedicalRecordAttachments
+      .filter((attachment) => attachment.userId === ctx.userId)
+      .filter((attachment) => (memberId ? attachment.memberId === memberId : true))
+      .toSorted((a, b) => b.createdAt.localeCompare(a.createdAt))
   }
 }
 
@@ -952,4 +1013,43 @@ export async function createAllergyRecord(ctx: RepositoryContext, input: CreateA
   })
 
   return mapAllergyRecord(record)
+}
+
+function createMockMedicalRecordAttachment(ctx: RepositoryContext, input: CreateMedicalRecordAttachmentInput, file?: MedicalAttachmentFile): MedicalRecordAttachment {
+  const attachment: MedicalRecordAttachment = {
+    id: `attachment-${Date.now()}`,
+    userId: ctx.userId,
+    memberId: input.memberId,
+    medicalRecordId: input.medicalRecordId,
+    fileName: file?.name ?? "medical-attachment.txt",
+    mimeType: file?.mimeType ?? "text/plain",
+    extractedText: input.extractedText,
+    hasFile: Boolean(file?.bytes.length),
+    createdAt: new Date().toISOString(),
+  }
+  mockMedicalRecordAttachments.unshift(attachment)
+  return attachment
+}
+
+export async function createMedicalRecordAttachment(ctx: RepositoryContext, input: CreateMedicalRecordAttachmentInput, file?: MedicalAttachmentFile) {
+  const prisma = getPrismaClient()
+  await assertDatabaseMemberBelongsToUser(ctx, input.memberId)
+  if (input.medicalRecordId) await assertMedicalRecordBelongsToUser(ctx, input.medicalRecordId, input.memberId)
+  if (!prisma) return createMockMedicalRecordAttachment(ctx, input, file)
+  try {
+    const attachment = await prisma.medicalRecordAttachment.create({
+      data: {
+        userId: ctx.userId,
+        memberId: input.memberId,
+        medicalRecordId: input.medicalRecordId,
+        fileName: file?.name ?? "medical-attachment.txt",
+        mimeType: file?.mimeType ?? "text/plain",
+        fileBytes: file?.bytes,
+        extractedText: input.extractedText,
+      },
+    })
+    return mapMedicalRecordAttachment(attachment)
+  } catch {
+    return createMockMedicalRecordAttachment(ctx, input, file)
+  }
 }

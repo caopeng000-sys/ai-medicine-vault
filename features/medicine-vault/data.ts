@@ -23,6 +23,18 @@ export type MedicalRecord = {
   note: string
 }
 
+export type MedicalRecordAttachment = {
+  id: string
+  userId: string
+  memberId: string
+  medicalRecordId?: string
+  fileName: string
+  mimeType: string
+  extractedText: string
+  hasFile: boolean
+  createdAt: string
+}
+
 export type Medicine = {
   id: string
   userId: string
@@ -73,6 +85,19 @@ export type AiConversationRecord = {
   createdAt: string
 }
 
+export type HealthDocumentChunkRecord = {
+  id: string
+  userId: string
+  memberId?: string
+  sourceType: string
+  sourceId: string
+  title: string
+  content: string
+  embedding: number[]
+  createdAt: string
+  updatedAt: string
+}
+
 export const DEVELOPMENT_USER_ID = "user-development"
 
 export const members: Member[] = [
@@ -105,6 +130,31 @@ export const members: Member[] = [
     gender: "女",
     allergySummary: "海鲜后出现皮疹，需继续观察并咨询医生。",
     note: "儿童用药剂量需要严格按医生或药师建议确认。",
+  },
+]
+
+export const medicalRecordAttachments: MedicalRecordAttachment[] = [
+  {
+    id: "attachment-ct-20260308",
+    userId: DEVELOPMENT_USER_ID,
+    memberId: "member-cp",
+    medicalRecordId: "record-20260308",
+    fileName: "ct-report-20260308.jpg",
+    mimeType: "image/jpeg",
+    extractedText: "胸部 CT 报告\n检查日期：2026-03-08\n医院：市立医院 耳鼻喉科\n印象：双下鼻甲肥大，鼻窦未见明显异常。",
+    hasFile: true,
+    createdAt: "2026-03-08T10:30:00.000Z",
+  },
+  {
+    id: "attachment-bp-20260215",
+    userId: DEVELOPMENT_USER_ID,
+    memberId: "member-mom",
+    medicalRecordId: "record-20260215",
+    fileName: "blood-pressure-note.jpg",
+    mimeType: "image/jpeg",
+    extractedText: "家庭血压监测记录\n2026-02-15 晨起 148/92 mmHg\n建议继续低盐饮食并按时复诊。",
+    hasFile: true,
+    createdAt: "2026-02-15T08:00:00.000Z",
   },
 ]
 
@@ -365,6 +415,8 @@ export const visitPreparations: VisitPreparation[] = [
 ]
 
 export const aiConversations: AiConversationRecord[] = []
+
+export const healthDocumentChunks: HealthDocumentChunkRecord[] = []
 
 export function getMemberById(memberId: string) {
   return members.find((member) => member.id === memberId)
