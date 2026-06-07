@@ -12,13 +12,14 @@ import {
   SyringeIcon,
 } from "lucide-react"
 
+import { MedicalAttachmentEntryDialog } from "@/components/medicine-vault/medical-attachment-entry-dialog"
 import { MedicalRecordEntryDialog } from "@/components/medicine-vault/medical-record-entry-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { requireCurrentUser } from "@/features/medicine-vault/auth-context"
-import { getMemberById, listMedicalRecords, listMembers } from "@/features/medicine-vault/repository"
+import { getMemberById, listMedicalRecordAttachments, listMedicalRecords, listMembers } from "@/features/medicine-vault/repository"
 
 const filterButtons = ["全部时间", "全部科室", "全部诊断"]
 
@@ -31,9 +32,10 @@ export default async function RecordsPage({
 }>) {
   const { member } = await searchParams
   const ctx = await requireCurrentUser()
-  const [members, records, currentMember] = await Promise.all([
+  const [members, records, attachments, currentMember] = await Promise.all([
     listMembers(ctx),
     listMedicalRecords(ctx, member),
+    listMedicalRecordAttachments(ctx, member),
     member ? getMemberById(ctx, member) : Promise.resolve(undefined),
   ])
 
@@ -59,10 +61,10 @@ export default async function RecordsPage({
               </p>
             </div>
 
-            <MedicalRecordEntryDialog
-              memberId={currentMember?.id ?? members[0]?.id ?? ""}
-              triggerLabel="新增病历"
-            />
+            <div className="flex flex-wrap gap-2">
+              <MedicalRecordEntryDialog memberId={currentMember?.id ?? members[0]?.id ?? ""} triggerLabel="新增病历" />
+              <MedicalAttachmentEntryDialog memberId={currentMember?.id ?? members[0]?.id ?? ""} triggerLabel="上传报告附件" />
+            </div>
           </div>
 
           <div className="grid gap-3 lg:grid-cols-3">
@@ -132,6 +134,23 @@ export default async function RecordsPage({
             </div>
           </div>
         </div>
+
+        {attachments.length > 0 ? (
+          <section className="mt-6 grid gap-4">
+            <h2 className="text-lg font-semibold text-slate-950">报告附件</h2>
+            {attachments.map((attachment) => (
+              <Card className="rounded-[26px] border-slate-100" key={attachment.id}>
+                <CardContent className="grid gap-3 p-5">
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="secondary">{members.find((m) => m.id === attachment.memberId)?.name ?? "未知成员"}</Badge>
+                    <Badge variant="outline">{attachment.fileName}</Badge>
+                  </div>
+                  <p className="whitespace-pre-wrap text-sm text-slate-600">{attachment.extractedText}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </section>
+        ) : null}
 
         <section className="mt-6 grid gap-4">
           {records.map((record, index) => {

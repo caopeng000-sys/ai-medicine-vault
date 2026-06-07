@@ -1,4 +1,4 @@
-export type HealthDataChunkSourceType = "member" | "record" | "medicine" | "allergy"
+export type HealthDataChunkSourceType = "member" | "record" | "medicine" | "allergy" | "attachment"
 
 export type HealthDataChunk = Readonly<{
   id: string

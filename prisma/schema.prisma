@@ -24,8 +24,9 @@ model User {
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   members           Member[]
-  medicalRecords    MedicalRecord[]
-  medicines         Medicine[]
+  medicalRecords           MedicalRecord[]
+  medicalRecordAttachments MedicalRecordAttachment[]
+  medicines                Medicine[]
   allergyRecords    AllergyRecord[]
   visitPreparations VisitPreparation[]
   aiConversations   AiConversation[]
@@ -42,8 +43,9 @@ model Member {
   note             String            @default("")
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
-  medicalRecords   MedicalRecord[]
-  medicines        Medicine[]
+  medicalRecords           MedicalRecord[]
+  medicalRecordAttachments MedicalRecordAttachment[]
+  medicines                Medicine[]
   allergyRecords   AllergyRecord[]
   visitPreparations VisitPreparation[]
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -65,10 +67,29 @@ model MedicalRecord {
   note             String   @default("")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
-  member           Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member      Member                    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  user        User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attachments MedicalRecordAttachment[]
 
   @@index([userId, memberId, visitedAt(sort: Desc)])
+}
+
+model MedicalRecordAttachment {
+  id              String         @id @default(cuid())
+  userId          String
+  memberId        String
+  medicalRecordId String?
+  fileName        String
+  mimeType        String
+  fileBytes       Bytes?
+  extractedText   String
+  createdAt       DateTime       @default(now())
+  member          Member         @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  medicalRecord   MedicalRecord? @relation(fields: [medicalRecordId], references: [id], onDelete: SetNull)
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, memberId, createdAt(sort: Desc)])
+  @@index([userId, medicalRecordId])
 }
 
 model Medicine {

@@ -108,6 +108,26 @@ export const medicalRecordExtractionFieldNames = Object.keys(
   extractedMedicalRecordSchema.shape
 ) as Array<keyof typeof extractedMedicalRecordSchema.shape>
 
+export const extractedMedicalAttachmentSchema = z.object({
+  extractedText: z.string().trim().default(""),
+  visitedAt: z.string().trim().default(""),
+  hospital: z.string().trim().default(""),
+  diagnosis: z.string().trim().default(""),
+  reportType: z.string().trim().default(""),
+  summary: z.string().trim().default(""),
+  warnings: z.array(z.string().trim()).default([]),
+})
+
+export const medicalAttachmentExtractionFieldNames = Object.keys(
+  extractedMedicalAttachmentSchema.shape,
+) as Array<keyof typeof extractedMedicalAttachmentSchema.shape>
+
+export const createMedicalRecordAttachmentSchema = z.object({
+  memberId: z.string().trim().min(1, "缺少成员信息。"),
+  medicalRecordId: z.string().trim().optional(),
+  extractedText: z.string().trim().min(1, "请提供 OCR 识别文本。"),
+})
+
 export type CreateMemberInput = z.infer<typeof createMemberSchema>
 export type UpdateMemberInput = z.infer<typeof updateMemberSchema>
 export type CreateMedicalRecordInput = z.infer<typeof createMedicalRecordSchema>
@@ -119,3 +139,5 @@ export type VisitPreparationGenerated = z.infer<typeof visitPreparationGenerated
 export type MemberHealthSummaryGenerated = z.infer<typeof memberHealthSummarySchema>
 export type ExtractedMedicineData = z.infer<typeof extractedMedicineSchema>
 export type ExtractedMedicalRecordData = z.infer<typeof extractedMedicalRecordSchema>
+export type ExtractedMedicalAttachmentData = z.infer<typeof extractedMedicalAttachmentSchema>
+export type CreateMedicalRecordAttachmentInput = z.infer<typeof createMedicalRecordAttachmentSchema>

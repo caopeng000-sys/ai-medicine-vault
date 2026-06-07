@@ -1,11 +1,31 @@
-import type { AllergyRecord, MedicalRecord, Medicine, Member } from "./data"
+import type { AllergyRecord, MedicalRecord, MedicalRecordAttachment, Medicine, Member } from "./data"
 import type { HealthDataChunk } from "./health-data-chunk"
+
+export function indexAttachmentChunks(
+  attachments: MedicalRecordAttachment[],
+  members: Member[],
+): HealthDataChunk[] {
+  const memberNameById = new Map(members.map((member) => [member.id, member.name]))
+  return attachments.map((attachment) => ({
+    id: `attachment-${attachment.id}`,
+    sourceType: "attachment",
+    sourceId: attachment.id,
+    memberId: attachment.memberId,
+    memberName: memberNameById.get(attachment.memberId),
+    title: `附件 · ${attachment.fileName}`,
+    content: [memberNameById.get(attachment.memberId), attachment.fileName, attachment.extractedText]
+      .filter(Boolean)
+      .join(" · "),
+    href: `/records?member=${attachment.memberId}`,
+  }))
+}
 
 export function indexHealthData(input: {
   members: Member[]
   records: MedicalRecord[]
   medicines: Medicine[]
   allergies: AllergyRecord[]
+  attachments?: MedicalRecordAttachment[]
 }): HealthDataChunk[] {
   const memberNameById = new Map(input.members.map((member) => [member.id, member.name]))
   const chunks: HealthDataChunk[] = []
@@ -107,5 +127,5 @@ export function indexHealthData(input: {
     })
   }
 
-  return chunks
+  return [...chunks, ...indexAttachmentChunks(input.attachments ?? [], input.members)]
 }
