@@ -41,4 +41,5 @@ jobs:
             features/medicine-vault/assistant-routing.test.ts \
             features/medicine-vault/medicine-pagination.test.ts \
             app/api/assistant/query/route.test.ts \
+            features/medicine-vault/export-service.test.ts \
             lib/storage/object-storage.test.ts

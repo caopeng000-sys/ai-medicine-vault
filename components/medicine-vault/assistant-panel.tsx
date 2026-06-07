@@ -139,6 +139,13 @@ export function AssistantPanel({ members }: AssistantPanelProps) {
 
   return (
     <div className="grid gap-6">
+      <p className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+        AI 回答仅基于您已录入的资料整理，不构成诊断或用药建议。
+        <Link className="ml-1 font-medium text-amber-950 underline underline-offset-2" href="/disclaimer">
+          查看免责声明
+        </Link>
+      </p>
+
       <section className="rounded-[32px] border border-slate-200/70 bg-white/95 p-5 shadow-[0_20px_90px_rgba(15,23,42,0.06)] md:p-7">
         <div className="flex flex-col gap-4 border-b border-slate-100 pb-6">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">

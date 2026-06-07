@@ -40,7 +40,7 @@ const secondaryNavigation = [
 
 const utilityNavigation = [
   { href: "/records", label: "数据分析", icon: LineChartIcon },
-  { href: "/assistant", label: "系统设置", icon: SettingsIcon },
+  { href: "/settings", label: "系统设置", icon: SettingsIcon },
 ]
 
 export function AppShell({

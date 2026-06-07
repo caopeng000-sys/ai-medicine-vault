@@ -12,6 +12,7 @@ const protectedPagePrefixes = [
   "/allergies",
   "/assistant",
   "/visit-prep",
+  "/settings",
 ]
 
 const protectedApiPrefixes = [
@@ -23,6 +24,7 @@ const protectedApiPrefixes = [
   "/api/search",
   "/api/visit-prep",
   "/api/health-index",
+  "/api/export",
 ]
 
 function isProtectedPath(pathname: string) {
@@ -79,6 +81,7 @@ export const config = {
     "/allergies/:path*",
     "/assistant/:path*",
     "/visit-prep/:path*",
+    "/settings/:path*",
     "/api/:path*",
   ],
 }
