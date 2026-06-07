@@ -28,11 +28,11 @@ const protectedApiPrefixes = [
 ]
 
 function isProtectedPath(pathname: string) {
-  if (pathname.startsWith("/api/auth")) {
+  if (pathname.startsWith("/api/auth") || pathname === "/api/health") {
     return false
   }
 
-  if (pathname === "/login") {
+  if (pathname === "/login" || pathname === "/privacy" || pathname === "/disclaimer") {
     return false
   }
 
@@ -82,6 +82,8 @@ export const config = {
     "/assistant/:path*",
     "/visit-prep/:path*",
     "/settings/:path*",
+    "/privacy",
+    "/disclaimer",
     "/api/:path*",
   ],
 }
