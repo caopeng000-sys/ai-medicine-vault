@@ -1,5 +1,6 @@
 import { createDashscopeChatCompletion } from "@/lib/ai/dashscope"
 
+import { guardAiText, HIGH_RISK_QUESTION_TEMPLATE, isHighRiskQuestion } from "./ai-safety-guardrail"
 import type { RepositoryContext } from "./auth-context"
 import type { AllergyRecord, MedicalRecord, Medicine, Member } from "./data"
 import {
@@ -242,6 +243,15 @@ export async function searchVault(
     }
   }
 
+  if (isHighRiskQuestion(query)) {
+    return {
+      query,
+      summary: HIGH_RISK_QUESTION_TEMPLATE,
+      results: [],
+      counts: { members: 0, records: 0, medicines: 0, allergies: 0 },
+    }
+  }
+
   const [members, records, medicines, allergies] = await Promise.all([
     runtime.listMembers(ctx),
     runtime.listMedicalRecords(ctx),
@@ -255,7 +265,7 @@ export async function searchVault(
   const allergyResults = searchAllergies(allergies, members, normalizedQuery)
 
   const results = [...memberResults, ...recordResults, ...medicineResults, ...allergyResults]
-  const summary = await runtime.summarizeResults({ query, results })
+  const summary = guardAiText(await runtime.summarizeResults({ query, results }))
 
   return {
     query,
