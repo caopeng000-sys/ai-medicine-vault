@@ -2,11 +2,15 @@ import assert from "node:assert/strict"
 import { afterEach, describe, it } from "node:test"
 
 import { DEFAULT_DEVELOPMENT_USER, type RepositoryContext } from "./auth-context"
+import { healthDocumentChunks } from "./data"
 import {
   createMedicalRecordAttachment,
+  deleteStaleChunks,
   listAllergyRecords,
+  listHealthDocumentChunks,
   listMedicalRecordAttachments,
   listMedicalRecords,
+  upsertHealthDocumentChunks,
   listMembers,
   listMedicines,
   listMedicinesPaginated,
@@ -91,3 +95,23 @@ describe("medical record attachments", () => {
     assert.equal((await listMedicalRecordAttachments(defaultCtx)).length, before + 1)
   })
 })
+
+describe("health document chunks", () => {
+  const defaultCtx: RepositoryContext = { userId: DEFAULT_DEVELOPMENT_USER.id }
+
+  afterEach(() => {
+    healthDocumentChunks.length = 0
+  })
+
+  it("upserts lists and deletes stale chunks in mock mode", async () => {
+    process.env.DATABASE_URL = ""
+    await upsertHealthDocumentChunks(defaultCtx, [
+      { id: "record-1", memberId: "member-cp", sourceType: "record", sourceId: "record-1", title: "病历", content: "咳嗽", embedding: [0.1] },
+      { id: "medicine-1", memberId: "member-cp", sourceType: "medicine", sourceId: "medicine-1", title: "药品", content: "布洛芬", embedding: [0.2] },
+    ])
+    assert.equal((await listHealthDocumentChunks(defaultCtx)).length, 2)
+    await deleteStaleChunks(defaultCtx, [{ sourceType: "record", sourceId: "record-1" }])
+    assert.equal((await listHealthDocumentChunks(defaultCtx)).length, 1)
+  })
+})
+

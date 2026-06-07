@@ -4,6 +4,8 @@ import type { AssistantSource } from "./assistant-service"
 import { guardAiText } from "./ai-safety-guardrail"
 import type { RepositoryContext } from "./auth-context"
 import type { AllergyRecord, MedicalRecord, Medicine, Member } from "./data"
+import { searchChunks } from "./health-chunk-index-service"
+import type { HealthDataChunk } from "./health-data-chunk"
 import { indexHealthData } from "./health-data-indexer"
 import { retrieveRelevantChunks } from "./health-data-retrieval"
 import {
@@ -12,6 +14,7 @@ import {
 } from "./member-context-resolver"
 import {
   listAllergyRecords,
+  listMedicalRecordAttachments,
   listMedicalRecords,
   listMedicines,
   listMembers,
@@ -27,6 +30,9 @@ type RagQueryDependencies = Readonly<{
   listMedicalRecords: (ctx: RepositoryContext) => Promise<MedicalRecord[]>
   listMedicines: (ctx: RepositoryContext) => Promise<Medicine[]>
   listAllergyRecords: (ctx: RepositoryContext) => Promise<AllergyRecord[]>
+  listMedicalRecordAttachments: (ctx: RepositoryContext, memberId?: string) => Promise<
+    Awaited<ReturnType<typeof listMedicalRecordAttachments>>
+  >
   summarizeAnswer: (input: {
     question: string
     context: string
@@ -34,7 +40,7 @@ type RagQueryDependencies = Readonly<{
   }) => Promise<string>
 }>
 
-function chunksToSources(chunks: ReturnType<typeof retrieveRelevantChunks>): AssistantSource[] {
+function chunksToSources(chunks: HealthDataChunk[]): AssistantSource[] {
   return chunks.map((chunk) => ({
     label: chunk.title,
     detail: chunk.content.slice(0, 120),
@@ -96,6 +102,7 @@ const defaultDependencies: RagQueryDependencies = {
   listMedicalRecords,
   listMedicines,
   listAllergyRecords,
+  listMedicalRecordAttachments,
   summarizeAnswer: defaultSummarizeAnswer,
 }
 
@@ -113,16 +120,27 @@ export async function answerRagQuery(
   }
 
   const normalizedQuestion = question.trim()
+  const memberId = options.memberId
 
-  const [members, records, medicines, allergies] = await Promise.all([
+  const [members, records, medicines, allergies, attachments] = await Promise.all([
     runtime.listMembers(ctx),
     runtime.listMedicalRecords(ctx),
     runtime.listMedicines(ctx),
     runtime.listAllergyRecords(ctx),
+    runtime.listMedicalRecordAttachments(ctx, memberId),
   ])
 
-  const chunks = indexHealthData({ members: filterMembersById(members, options.memberId), records: filterByMemberId(records, options.memberId), medicines: filterByMemberId(medicines, options.memberId), allergies: filterByMemberId(allergies, options.memberId) })
-  const relevantChunks = retrieveRelevantChunks(normalizedQuestion, chunks)
+  const chunks = indexHealthData({
+    members: filterMembersById(members, memberId),
+    records: filterByMemberId(records, memberId),
+    medicines: filterByMemberId(medicines, memberId),
+    allergies: filterByMemberId(allergies, memberId),
+    attachments: filterByMemberId(attachments, memberId),
+  })
+
+  const indexedChunks = await searchChunks(ctx, normalizedQuestion, 5, memberId)
+  const relevantChunks =
+    indexedChunks.length > 0 ? indexedChunks : retrieveRelevantChunks(normalizedQuestion, chunks)
   const sources = chunksToSources(relevantChunks)
   const context = relevantChunks
     .map((chunk) => `[${chunk.title}] ${chunk.content}`)

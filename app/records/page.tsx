@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { requireCurrentUser } from "@/features/medicine-vault/auth-context"
+import type { MedicalRecord } from "@/features/medicine-vault/data"
 import { getMemberById, listMedicalRecordAttachments, listMedicalRecords, listMembers } from "@/features/medicine-vault/repository"
 
 const filterButtons = ["全部时间", "全部科室", "全部诊断"]
@@ -39,7 +40,7 @@ export default async function RecordsPage({
     member ? getMemberById(ctx, member) : Promise.resolve(undefined),
   ])
 
-  const departments = new Set(records.map((record) => record.department)).size
+  const departments = new Set(records.map((record: MedicalRecord) => record.department)).size
   const latestVisitedAt = records[0]?.visitedAt ?? "暂无记录"
 
   return (
