@@ -2,8 +2,9 @@ import { NextResponse } from "next/server"
 
 import { requireCurrentUser } from "@/features/medicine-vault/auth-context"
 import { createMemberSchema } from "@/features/medicine-vault/schemas"
-import { createMember } from "@/features/medicine-vault/repository"
+import { createMember, listMembers } from "@/features/medicine-vault/repository"
 
+export async function GET() { try { const ctx = await requireCurrentUser(); return NextResponse.json({ members: await listMembers(ctx) }) } catch (error) { return NextResponse.json({ message: error instanceof Error ? error.message : "读取成员列表失败。" }, { status: 400 }) } }
 export async function POST(request: Request) {
   try {
     const ctx = await requireCurrentUser()

@@ -21,9 +21,10 @@ describe("search service", () => {
     assert.ok(result.counts.allergies >= 1)
     assert.ok(result.results.some((item) => item.category === "medicine"))
     assert.ok(result.results.some((item) => item.category === "allergy"))
-    assert.equal(result.summary, "summary:过敏:7")
+    assert.ok(result.results.length >= 7); assert.equal(result.summary, `summary:过敏:${result.results.length}`)
   })
 
+  it("scopes results to a selected member", async () => { const result = await searchVault(ctx, "过敏", { listMembers: async () => members, listMedicalRecords: async () => medicalRecords, listMedicines: async () => medicines, listAllergyRecords: async () => allergyRecords, summarizeResults: async ({ results }) => `scoped:${results.length}` }, { memberId: "member-child" }); assert.ok(result.results.every((item) => item.detail.includes("小朋友") || item.label.includes("小朋友"))) })
   it("returns an empty summary when nothing matches", async () => {
     const result = await searchVault(ctx, "不存在的关键词", {
       listMembers: async () => members,

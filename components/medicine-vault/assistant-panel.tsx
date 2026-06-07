@@ -19,7 +19,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import type { AssistantQueryResponse } from "@/features/medicine-vault/assistant-service"
 import type { AssistantIntent } from "@/features/medicine-vault/assistant-routing"
-import type { AiConversationRecord } from "@/features/medicine-vault/data"
+import type { AiConversationRecord, Member } from "@/features/medicine-vault/data"
 
 const suggestedQuestions = [
   "我上次什么时候感冒？",
@@ -61,8 +61,10 @@ function formatConversationTime(value: string) {
   })
 }
 
-export function AssistantPanel() {
+type AssistantPanelProps = Readonly<{ members: Member[] }>
+export function AssistantPanel({ members }: AssistantPanelProps) {
   const [question, setQuestion] = useState("我上次什么时候感冒？")
+  const [selectedMemberId, setSelectedMemberId] = useState("")
   const [result, setResult] = useState<AssistantQueryResponse | null>(null)
   const [history, setHistory] = useState<AiConversationRecord[]>([])
   const [loading, setLoading] = useState(false)
@@ -113,7 +115,7 @@ export function AssistantPanel() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ question: trimmedQuestion }),
+        body: JSON.stringify({ question: trimmedQuestion, ...(selectedMemberId ? { memberId: selectedMemberId } : {}) }),
       })
 
       const payload = (await response.json()) as AssistantQueryResponse
@@ -190,13 +192,13 @@ export function AssistantPanel() {
           </div>
 
           <form
-            className="flex min-w-0 items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3"
+            className="flex min-w-0 flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 lg:flex-row lg:items-center"
             onSubmit={(event) => {
               event.preventDefault()
               void submitQuestion()
             }}
           >
-            <SearchIcon className="size-4 text-slate-400" aria-hidden="true" />
+            <label className="grid shrink-0 gap-1 text-sm lg:min-w-[10rem]"><span className="font-medium text-slate-600">成员范围</span><select className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm" disabled={loading} onChange={(e) => setSelectedMemberId(e.target.value)} value={selectedMemberId}><option value="">全部成员</option>{members.map((m) => <option key={m.id} value={m.id}>{m.name}（{m.relationship}）</option>)}</select></label><SearchIcon className="hidden size-4 text-slate-400 lg:block" aria-hidden="true" />
             <Input
               className="border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
               onChange={(event) => {

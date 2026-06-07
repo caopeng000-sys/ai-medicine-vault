@@ -8,7 +8,7 @@ export async function POST(request: Request) {
   try {
     const ctx = await requireCurrentUser()
     const input = vaultSearchSchema.parse(await request.json())
-    const result = await searchVault(ctx, input.query)
+    const result = await searchVault(ctx, input.query, {}, { memberId: input.memberId })
 
     return NextResponse.json(result)
   } catch (error) {
