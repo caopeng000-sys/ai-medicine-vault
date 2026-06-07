@@ -4,6 +4,7 @@ import { describe, it } from "node:test"
 import { allergyRecords, medicalRecords, medicines, members } from "./data"
 import {
   buildAllergyMatches,
+  buildVisitPrepSources,
   detectAssistantIntent,
   findAntiallergicMedicines,
   findRecentColdRecord,
@@ -50,5 +51,18 @@ describe("assistant routing helpers", () => {
     assert.ok(result.length >= 2)
     assert.equal(result[0]?.record.allergen, "海鲜")
     assert.equal(result[0]?.member?.name, "小朋友")
+  })
+
+  it("detects visit preparation questions", () => {
+    assert.equal(detectAssistantIntent("下次看医生前应该准备哪些问题？"), "visit_prep_query")
+    assert.equal(detectAssistantIntent("咳嗽低烧复诊前应该问什么"), "visit_prep_query")
+  })
+
+  it("builds visit prep sources from records medicines and allergies", () => {
+    const result = buildVisitPrepSources(members, medicalRecords, medicines, allergyRecords)
+
+    assert.ok(result.some((source) => source.label.startsWith("病历")))
+    assert.ok(result.some((source) => source.label.startsWith("过敏")))
+    assert.ok(result.some((source) => source.label.startsWith("药品")))
   })
 })

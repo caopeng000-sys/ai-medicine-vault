@@ -55,7 +55,7 @@ describe("assistant service", () => {
 
     assert.equal(result.intent, "unsupported")
     assert.equal(result.answer, "")
-    assert.equal(result.message, "这类问题我现在还不支持。你可以问我上次什么时候感冒、家里有哪些抗过敏药，或者之前对哪些药有过不适。")
+    assert.equal(result.message, "这类问题我现在还不支持。你可以问我上次什么时候感冒、家里有哪些抗过敏药、之前对哪些药有过不适，或者下次看医生前应该准备哪些问题。")
     assert.equal(askedMembers, false)
     assert.equal(askedRecords, false)
     assert.equal(askedMedicines, false)
@@ -131,5 +131,27 @@ describe("assistant service", () => {
     assert.equal(result.answer, "allergy_query:2")
     assert.ok(result.sources.some((source) => source.label.includes("青霉素")))
     assert.ok(result.sources.some((source) => source.label.includes("海鲜")))
+  })
+
+  it("returns visit prep questions with multi-source context", async () => {
+    const result = await resolveAssistantQuery(ctx, "下次看医生前应该准备哪些问题？", {
+      classifyQuestion: async () => ({
+        intent: "visit_prep_query",
+        reason: "命中就医准备查询",
+      }),
+      selectMedicines: async () => ({ selectedIds: [], summary: "", reason: "" }),
+      summarizeAnswer: async () => "不会被调用",
+      summarizeVisitPrep: async ({ sources }) => `visit_prep_query:${sources.length}`,
+      listMembers: async () => members,
+      listMedicalRecords: async () => medicalRecords,
+      listMedicines: async () => medicines,
+      listAllergyRecords: async () => allergyRecords,
+    })
+
+    assert.equal(result.intent, "visit_prep_query")
+    assert.equal(result.answer, "visit_prep_query:10")
+    assert.ok(result.sources.some((source) => source.label.startsWith("病历")))
+    assert.ok(result.sources.some((source) => source.label.startsWith("过敏")))
+    assert.ok(result.sources.some((source) => source.label.startsWith("药品")))
   })
 })

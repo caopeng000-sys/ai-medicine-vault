@@ -30,6 +30,7 @@ const intentLabels: Record<AssistantIntent, string> = {
   recent_cold_record: "感冒记录",
   medicine_query: "药品查询",
   allergy_query: "过敏记录",
+  visit_prep_query: "就医准备",
   unsupported: "未支持",
 }
 
