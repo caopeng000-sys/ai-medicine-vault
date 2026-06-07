@@ -12,10 +12,12 @@ import {
   buildAllergyMatches,
   buildVisitPrepSources,
   detectAssistantIntent,
+  detectOpenQueryIntent,
   findRecentColdRecord,
   parseAssistantIntent,
   type AssistantIntent,
 } from "./assistant-routing"
+import { answerRagQuery } from "./rag-query-service"
 
 export type AssistantSource = Readonly<{
   label: string
@@ -212,6 +214,14 @@ function fallbackSelectMedicines(question: string, medicines: Medicine[]) {
 async function defaultClassifyQuestion(question: string): Promise<AssistantClassification> {
   const fallbackIntent = detectAssistantIntent(question)
 
+  function resolveIntent(intent: AssistantIntent) {
+    if (intent !== "unsupported") {
+      return intent
+    }
+
+    return detectOpenQueryIntent(question) ?? "unsupported"
+  }
+
   try {
     const rawText = await createDashscopeChatCompletion({
       model: "qwen-plus",
@@ -221,11 +231,12 @@ async function defaultClassifyQuestion(question: string): Promise<AssistantClass
           content: [
             "你是一个家庭健康资料助手的意图识别器。",
             "只允许返回 JSON。",
-            "可选 intent 只有五个：recent_cold_record, medicine_query, allergy_query, visit_prep_query, unsupported。",
+            "可选 intent 只有六个：recent_cold_record, medicine_query, allergy_query, visit_prep_query, open_query, unsupported。",
             '如果问题在问“上次什么时候感冒 / 上次感冒 / 最近感冒记录”，返回 recent_cold_record。',
             '如果问题在问任何家庭药品相关问题，例如“家里有哪些抗咳嗽药 / 抗过敏药 / 退烧药 / 感冒药 / 止痛药”，返回 medicine_query。',
             '如果问题在问过敏史、药物不良反应或“对哪些药有过不适”，返回 allergy_query。',
             '如果问题在问就医前准备、看医生前要问什么、就诊前应该准备哪些问题，返回 visit_prep_query。',
+            '如果问题是开放性的资料检索，例如在某次检查/报告/记录中查找信息，返回 open_query。',
             "其他问题返回 unsupported。",
             '返回格式示例：{"intent":"recent_cold_record","reason":"命中了感冒记录意图"}',
           ].join("\n"),
@@ -240,12 +251,12 @@ async function defaultClassifyQuestion(question: string): Promise<AssistantClass
     const parsed = parseAssistantIntent(rawText)
 
     return {
-      intent: parsed.intent === "unsupported" ? fallbackIntent : parsed.intent,
+      intent: resolveIntent(parsed.intent === "unsupported" ? fallbackIntent : parsed.intent),
       reason: parsed.reason,
     }
   } catch {
     return {
-      intent: fallbackIntent,
+      intent: resolveIntent(fallbackIntent),
       reason: "模型识别失败，已使用本地兜底规则。",
     }
   }
@@ -409,6 +420,16 @@ export async function resolveAssistantQuery(
       answer: "",
       message: UNSUPPORTED_MESSAGE,
       sources: [],
+    }
+  }
+
+  if (classification.intent === "open_query") {
+    const ragResult = await answerRagQuery(ctx, normalizedQuestion)
+
+    return {
+      intent: "open_query",
+      answer: guardAssistantAnswer(ragResult.answer),
+      sources: ragResult.sources,
     }
   }
 
