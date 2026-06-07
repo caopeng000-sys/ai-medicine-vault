@@ -29,6 +29,7 @@ const suggestedQuestions = [
 const intentLabels: Record<AssistantIntent, string> = {
   recent_cold_record: "感冒记录",
   medicine_query: "药品查询",
+  allergy_query: "过敏记录",
   unsupported: "未支持",
 }
 

@@ -1,8 +1,14 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
-import { medicalRecords, medicines, members } from "./data"
-import { findAntiallergicMedicines, findRecentColdRecord, parseAssistantIntent } from "./assistant-routing"
+import { allergyRecords, medicalRecords, medicines, members } from "./data"
+import {
+  buildAllergyMatches,
+  detectAssistantIntent,
+  findAntiallergicMedicines,
+  findRecentColdRecord,
+  parseAssistantIntent,
+} from "./assistant-routing"
 
 describe("assistant routing helpers", () => {
   it("finds the latest cold-related medical record", () => {
@@ -25,5 +31,24 @@ describe("assistant routing helpers", () => {
 
     assert.equal(result.intent, "medicine_query")
     assert.equal(result.reason, "命中了药品查询意图")
+  })
+
+  it("parses allergy_query intent from JSON text", () => {
+    const result = parseAssistantIntent('{"intent":"allergy_query","reason":"命中了过敏记录意图"}')
+
+    assert.equal(result.intent, "allergy_query")
+  })
+
+  it("detects allergy history questions separately from medicine inventory questions", () => {
+    assert.equal(detectAssistantIntent("我之前对哪些药有过不适？"), "allergy_query")
+    assert.equal(detectAssistantIntent("家里有哪些抗过敏药？"), "medicine_query")
+  })
+
+  it("builds allergy matches with member context", () => {
+    const result = buildAllergyMatches(allergyRecords, members)
+
+    assert.ok(result.length >= 2)
+    assert.equal(result[0]?.record.allergen, "海鲜")
+    assert.equal(result[0]?.member?.name, "小朋友")
   })
 })
