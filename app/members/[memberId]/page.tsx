@@ -8,6 +8,7 @@ import {
 import Link from "next/link"
 
 import { MemberDeleteButton } from "@/components/medicine-vault/member-delete-button"
+import { MemberHealthSummaryPanel } from "@/components/medicine-vault/member-health-summary-panel"
 import { MockEntryDialog } from "@/components/medicine-vault/mock-entry-dialog"
 import { PageHeader } from "@/components/medicine-vault/page-header"
 import { Badge } from "@/components/ui/badge"
@@ -175,6 +176,8 @@ export default async function MemberDetailPage({
           </CardContent>
         </Card>
       </section>
+
+      <MemberHealthSummaryPanel memberId={member.id} memberName={member.name} />
 
       <section className="grid gap-4 xl:grid-cols-3">
         <Card className="xl:col-span-2">

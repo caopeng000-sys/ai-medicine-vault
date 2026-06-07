@@ -68,6 +68,14 @@ export const visitPreparationGeneratedSchema = z.object({
   questions: z.array(z.string().trim().min(1)).min(1),
 })
 
+export const memberHealthSummarySchema = z.object({
+  chronicTimeline: z.array(z.string().trim().min(1)),
+  medicationSummary: z.string().trim().min(1),
+  allergyRisks: z.string().trim().min(1),
+  lastVisitHighlight: z.string().trim().min(1),
+  doctorBrief: z.string().trim().min(1),
+})
+
 export const extractedMedicineSchema = z.object({
   name: z.string().trim().default(""),
   category: z.string().trim().default(""),
@@ -92,4 +100,5 @@ export type CreateAllergyRecordInput = z.infer<typeof createAllergyRecordSchema>
 export type GenerateVisitPreparationInput = z.infer<typeof generateVisitPreparationSchema>
 export type VaultSearchInput = z.infer<typeof vaultSearchSchema>
 export type VisitPreparationGenerated = z.infer<typeof visitPreparationGeneratedSchema>
+export type MemberHealthSummaryGenerated = z.infer<typeof memberHealthSummarySchema>
 export type ExtractedMedicineData = z.infer<typeof extractedMedicineSchema>
