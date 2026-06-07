@@ -62,6 +62,17 @@ export type VisitPreparation = {
   questions: string[]
 }
 
+export type AiConversationRecord = {
+  id: string
+  userId: string
+  question: string
+  answer: string
+  intent: string
+  message?: string
+  sources: ReadonlyArray<{ label: string; detail: string }>
+  createdAt: string
+}
+
 export const DEVELOPMENT_USER_ID = "user-development"
 
 export const members: Member[] = [
@@ -352,6 +363,8 @@ export const visitPreparations: VisitPreparation[] = [
     ],
   },
 ]
+
+export const aiConversations: AiConversationRecord[] = []
 
 export function getMemberById(memberId: string) {
   return members.find((member) => member.id === memberId)

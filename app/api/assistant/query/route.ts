@@ -2,10 +2,16 @@ import { NextResponse } from "next/server"
 
 import type { RepositoryContext } from "@/features/medicine-vault/auth-context"
 import { requireCurrentUser } from "@/features/medicine-vault/auth-context"
+import { saveAssistantConversation } from "@/features/medicine-vault/assistant-conversation"
 import { resolveAssistantQuery, type AssistantQueryResponse } from "@/features/medicine-vault/assistant-service"
 
 type AssistantQueryHandler = (request: Request) => Promise<Response>
 type ResolveAssistantQuery = (ctx: RepositoryContext, question: string) => Promise<AssistantQueryResponse>
+type SaveAssistantConversation = (
+  ctx: RepositoryContext,
+  question: string,
+  result: AssistantQueryResponse,
+) => Promise<void>
 
 type AssistantQueryRequestBody = Readonly<{
   question?: string
@@ -14,6 +20,7 @@ type AssistantQueryRequestBody = Readonly<{
 export function createAssistantQueryHandler(
   resolveQuery: ResolveAssistantQuery = resolveAssistantQuery,
   getContext = requireCurrentUser,
+  saveConversation: SaveAssistantConversation = saveAssistantConversation,
 ): AssistantQueryHandler {
   return async (request) => {
     try {
@@ -34,6 +41,12 @@ export function createAssistantQueryHandler(
       }
 
       const result = await resolveQuery(ctx, question)
+
+      try {
+        await saveConversation(ctx, question, result)
+      } catch {
+        // 对话持久化失败不应阻断问答主流程。
+      }
 
       return NextResponse.json(result)
     } catch (error) {

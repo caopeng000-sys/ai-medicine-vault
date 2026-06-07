@@ -28,6 +28,7 @@ model User {
   medicines         Medicine[]
   allergyRecords    AllergyRecord[]
   visitPreparations VisitPreparation[]
+  aiConversations   AiConversation[]
 }
 
 model Member {
@@ -126,4 +127,18 @@ model VisitPreparation {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, memberId, createdAt(sort: Desc)])
+}
+
+model AiConversation {
+  id        String   @id @default(cuid())
+  userId    String
+  question  String
+  answer    String
+  intent    String
+  message   String?
+  sources   Json
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
 }

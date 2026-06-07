@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   ArrowUpRightIcon,
   BotIcon,
@@ -19,6 +19,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import type { AssistantQueryResponse } from "@/features/medicine-vault/assistant-service"
 import type { AssistantIntent } from "@/features/medicine-vault/assistant-routing"
+import type { AiConversationRecord } from "@/features/medicine-vault/data"
 
 const suggestedQuestions = [
   "我上次什么时候感冒？",
@@ -35,15 +36,63 @@ const intentLabels: Record<AssistantIntent, string> = {
   unsupported: "未支持",
 }
 
+function toAssistantResult(conversation: AiConversationRecord): AssistantQueryResponse {
+  return {
+    intent: conversation.intent as AssistantIntent,
+    answer: conversation.answer,
+    message: conversation.message,
+    sources: [...conversation.sources],
+  }
+}
+
+function formatConversationTime(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return "刚刚"
+  }
+
+  return date.toLocaleString("zh-CN", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
 export function AssistantPanel() {
   const [question, setQuestion] = useState("我上次什么时候感冒？")
   const [result, setResult] = useState<AssistantQueryResponse | null>(null)
+  const [history, setHistory] = useState<AiConversationRecord[]>([])
   const [loading, setLoading] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState(true)
   const [error, setError] = useState("")
 
   const sourceCount = result?.sources.length ?? 0
   const resultIntentLabel = result ? intentLabels[result.intent] : "等待提问"
   const canSubmit = useMemo(() => question.trim().length > 0 && !loading, [loading, question])
+
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true)
+
+    try {
+      const response = await fetch("/api/assistant/conversations")
+      const payload = (await response.json()) as { conversations?: AiConversationRecord[]; message?: string }
+
+      if (!response.ok) {
+        throw new Error(payload.message ?? "读取对话历史失败。")
+      }
+
+      setHistory(payload.conversations ?? [])
+    } catch {
+      setHistory([])
+    } finally {
+      setHistoryLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadHistory()
+  }, [loadHistory])
 
   async function submitQuestion(nextQuestion = question) {
     const trimmedQuestion = nextQuestion.trim()
@@ -75,6 +124,7 @@ export function AssistantPanel() {
 
       setResult(payload)
       setError("")
+      await loadHistory()
     } catch {
       setResult(null)
       setError("网络暂时不可用，请稍后再试。")
@@ -96,7 +146,7 @@ export function AssistantPanel() {
                 </Badge>
               </div>
               <p className="max-w-3xl text-sm leading-6 text-slate-500">
-                先识别你在问什么，再去查病历或药品库，最后返回带来源依据的答案。现在支持感冒记录和药品查询两类问题。
+                先识别你在问什么，再去查病历、药品或过敏记录，最后返回带来源依据的答案。当前支持 4 类推荐问题。
               </p>
             </div>
 
@@ -114,8 +164,8 @@ export function AssistantPanel() {
                 <MessageSquareTextIcon className="size-4 text-violet-500" aria-hidden="true" />
                 支持意图
               </p>
-              <p className="mt-3 text-3xl font-semibold text-slate-950">2</p>
-              <p className="mt-1 text-sm text-slate-500">当前只保留两个固定意图，回答稳定且带来源。</p>
+              <p className="mt-3 text-3xl font-semibold text-slate-950">4</p>
+              <p className="mt-1 text-sm text-slate-500">推荐问题已全部接通，回答稳定且带来源。</p>
             </div>
 
             <div className="rounded-2xl border border-emerald-100 bg-emerald-50/85 p-4">
@@ -193,9 +243,50 @@ export function AssistantPanel() {
               </div>
 
               <div className="rounded-[22px] border border-slate-100 bg-slate-50/70 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-slate-700">最近对话</p>
+                  <Badge className="rounded-full px-2.5 py-1" variant="secondary">
+                    {history.length}
+                  </Badge>
+                </div>
+
+                <div className="mt-3 grid gap-2">
+                  {historyLoading ? (
+                    <p className="text-sm text-slate-500">正在加载最近对话...</p>
+                  ) : history.length > 0 ? (
+                    history.map((conversation) => (
+                      <button
+                        className="rounded-[18px] border border-slate-100 bg-white px-3 py-3 text-left transition-colors hover:bg-slate-50"
+                        key={conversation.id}
+                        onClick={() => {
+                          setQuestion(conversation.question)
+                          setResult(toAssistantResult(conversation))
+                          setError("")
+                        }}
+                        type="button"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <Badge className="rounded-full px-2.5 py-1" variant="secondary">
+                            {intentLabels[conversation.intent as AssistantIntent] ?? conversation.intent}
+                          </Badge>
+                          <span className="text-xs text-slate-400">{formatConversationTime(conversation.createdAt)}</span>
+                        </div>
+                        <p className="mt-2 text-sm font-medium text-slate-800">{conversation.question}</p>
+                        <p className="mt-1 line-clamp-2 text-sm text-slate-500">
+                          {conversation.answer || conversation.message || "暂无回答内容"}
+                        </p>
+                      </button>
+                    ))
+                  ) : (
+                    <p className="text-sm text-slate-500">发送第一个问题后，这里会保留最近 10 轮对话。</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-[22px] border border-slate-100 bg-slate-50/70 p-4">
                 <p className="text-sm font-medium text-slate-700">说明</p>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  右侧会展示 AI 的答案、识别到的意图和来源记录。没有识别到的问题会给出友好提示，不会硬答。
+                  右侧会展示 AI 的答案、识别到的意图和来源记录。点击左侧最近对话可快速回看历史问答。
                 </p>
               </div>
             </CardContent>
@@ -273,7 +364,7 @@ export function AssistantPanel() {
               <div className="flex items-start gap-3 rounded-[22px] border border-emerald-100 bg-emerald-50/70 p-4">
                 <ShieldCheckIcon className="mt-0.5 size-4 text-emerald-600" aria-hidden="true" />
                 <p className="text-sm leading-6 text-slate-600">
-                  当前只回答两类问题：感冒记录和抗过敏药。我们先把这两个意图打稳，再往外扩。
+                  助手会保存最近 10 轮问答，方便刷新后继续查看。所有回答仅用于资料整理，不构成诊断或治疗建议。
                 </p>
               </div>
             </CardContent>
