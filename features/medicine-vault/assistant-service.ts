@@ -1,9 +1,10 @@
-import type { MedicalRecord, Medicine, Member } from "./data"
+import type { AllergyRecord, MedicalRecord, Medicine, Member } from "./data"
 import { createDashscopeChatCompletion } from "@/lib/ai/dashscope"
 
 import type { RepositoryContext } from "./auth-context"
-import { listMedicalRecords, listMedicines, listMembers } from "./repository"
+import { listAllergyRecords, listMedicalRecords, listMedicines, listMembers } from "./repository"
 import {
+  buildAllergyMatches,
   detectAssistantIntent,
   findRecentColdRecord,
   parseAssistantIntent,
@@ -49,9 +50,11 @@ type AssistantDependencies = Readonly<{
   listMembers: (ctx: RepositoryContext) => Promise<Member[]>
   listMedicalRecords: (ctx: RepositoryContext) => Promise<MedicalRecord[]>
   listMedicines: (ctx: RepositoryContext) => Promise<Medicine[]>
+  listAllergyRecords: (ctx: RepositoryContext) => Promise<AllergyRecord[]>
 }>
 
-const UNSUPPORTED_MESSAGE = "这类问题我现在还不支持。你可以问我上次什么时候感冒，或者家里有哪些抗过敏药。"
+const UNSUPPORTED_MESSAGE =
+  "这类问题我现在还不支持。你可以问我上次什么时候感冒、家里有哪些抗过敏药，或者之前对哪些药有过不适。"
 const NO_RESULT_MESSAGE = "我找到了这个问题对应的方向，但暂时没有查到可用记录。"
 
 function buildSourceDetail(title: string, detail: string) {
@@ -96,6 +99,11 @@ function fallbackAnswer(intent: AssistantIntent, sources: AssistantSource[]) {
   if (intent === "medicine_query") {
     if (sources.length === 0) return NO_RESULT_MESSAGE
     return `家里现有的相关药品包括：${sources.map((item) => item.label).join("、")}。`
+  }
+
+  if (intent === "allergy_query") {
+    if (sources.length === 0) return NO_RESULT_MESSAGE
+    return `目前记录到的过敏/不适包括：${sources.map((item) => item.label).join("、")}。`
   }
 
   return NO_RESULT_MESSAGE
@@ -168,9 +176,10 @@ async function defaultClassifyQuestion(question: string): Promise<AssistantClass
           content: [
             "你是一个家庭健康资料助手的意图识别器。",
             "只允许返回 JSON。",
-            '可选 intent 只有三个：recent_cold_record, medicine_query, unsupported。',
+            "可选 intent 只有四个：recent_cold_record, medicine_query, allergy_query, unsupported。",
             '如果问题在问“上次什么时候感冒 / 上次感冒 / 最近感冒记录”，返回 recent_cold_record。',
             '如果问题在问任何家庭药品相关问题，例如“家里有哪些抗咳嗽药 / 抗过敏药 / 退烧药 / 感冒药 / 止痛药”，返回 medicine_query。',
+            '如果问题在问过敏史、药物不良反应或“对哪些药有过不适”，返回 allergy_query。',
             "其他问题返回 unsupported。",
             '返回格式示例：{"intent":"recent_cold_record","reason":"命中了感冒记录意图"}',
           ].join("\n"),
@@ -282,6 +291,7 @@ const defaultDependencies: AssistantDependencies = {
   listMembers,
   listMedicalRecords,
   listMedicines,
+  listAllergyRecords,
 }
 
 export async function resolveAssistantQuery(
@@ -395,6 +405,51 @@ export async function resolveAssistantQuery(
       return {
         intent: classification.intent,
         answer: selection.summary || fallbackAnswer(classification.intent, sources),
+        sources,
+      }
+    }
+  }
+
+  if (classification.intent === "allergy_query") {
+    const [members, allergyRecords] = await Promise.all([
+      runtime.listMembers(ctx),
+      runtime.listAllergyRecords(ctx),
+    ])
+    const matches = buildAllergyMatches(allergyRecords, members)
+
+    if (matches.length === 0) {
+      return {
+        intent: classification.intent,
+        answer: NO_RESULT_MESSAGE,
+        sources: [],
+      }
+    }
+
+    const sources: AssistantSource[] = matches.map(({ record, member }) => ({
+      label: `过敏 · ${record.allergen}`,
+      detail: buildSourceDetail(
+        record.severity,
+        `${member?.name ?? "未知成员"} · ${record.reaction} · 发现于 ${record.discoveredAt}`,
+      ),
+    }))
+
+    try {
+      const answer = await runtime.summarizeAnswer({
+        question: normalizedQuestion,
+        intent: classification.intent,
+        sources,
+        context: buildContext(classification.intent, sources),
+      })
+
+      return {
+        intent: classification.intent,
+        answer: answer || fallbackAnswer(classification.intent, sources),
+        sources,
+      }
+    } catch {
+      return {
+        intent: classification.intent,
+        answer: fallbackAnswer(classification.intent, sources),
         sources,
       }
     }

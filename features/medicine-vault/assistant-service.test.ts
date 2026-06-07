@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
-import { medicalRecords, medicines, members } from "./data"
+import { allergyRecords, medicalRecords, medicines, members } from "./data"
 import { DEFAULT_DEVELOPMENT_USER, type RepositoryContext } from "./auth-context"
 import { resolveAssistantQuery } from "./assistant-service"
 
@@ -19,6 +19,7 @@ describe("assistant service", () => {
       listMembers: async () => members,
       listMedicalRecords: async () => medicalRecords,
       listMedicines: async () => medicines,
+      listAllergyRecords: async () => allergyRecords,
     })
 
     assert.equal(result.intent, "recent_cold_record")
@@ -54,7 +55,7 @@ describe("assistant service", () => {
 
     assert.equal(result.intent, "unsupported")
     assert.equal(result.answer, "")
-    assert.equal(result.message, "这类问题我现在还不支持。你可以问我上次什么时候感冒，或者家里有哪些抗过敏药。")
+    assert.equal(result.message, "这类问题我现在还不支持。你可以问我上次什么时候感冒、家里有哪些抗过敏药，或者之前对哪些药有过不适。")
     assert.equal(askedMembers, false)
     assert.equal(askedRecords, false)
     assert.equal(askedMedicines, false)
@@ -75,6 +76,7 @@ describe("assistant service", () => {
       listMembers: async () => members,
       listMedicalRecords: async () => medicalRecords,
       listMedicines: async () => medicines,
+      listAllergyRecords: async () => allergyRecords,
     })
 
     assert.equal(result.intent, "medicine_query")
@@ -109,5 +111,25 @@ describe("assistant service", () => {
 
     assert.equal(result.answer, "sources:1")
     assert.deepEqual(seen, [ctx.userId, ctx.userId])
+  })
+
+  it("returns source-backed allergy records for allergy history questions", async () => {
+    const result = await resolveAssistantQuery(ctx, "我之前对哪些药有过不适？", {
+      classifyQuestion: async () => ({
+        intent: "allergy_query",
+        reason: "命中过敏记录查询",
+      }),
+      selectMedicines: async () => ({ selectedIds: [], summary: "", reason: "" }),
+      summarizeAnswer: async ({ intent, sources }) => `${intent}:${sources.length}`,
+      listMembers: async () => members,
+      listMedicalRecords: async () => medicalRecords,
+      listMedicines: async () => medicines,
+      listAllergyRecords: async () => allergyRecords,
+    })
+
+    assert.equal(result.intent, "allergy_query")
+    assert.equal(result.answer, "allergy_query:2")
+    assert.ok(result.sources.some((source) => source.label.includes("青霉素")))
+    assert.ok(result.sources.some((source) => source.label.includes("海鲜")))
   })
 })
