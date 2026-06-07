@@ -206,9 +206,14 @@ P2 可以作为产品成熟度提升项，不阻塞第一版上线。
 
 确保用户健康资料和图片可以恢复。
 
+**当前进展**
+
+- 备份与恢复流程文档：[backup-and-recovery.md](./backup-and-recovery.md)
+- 涵盖 PostgreSQL、对象存储、迁移前备份与恢复演练清单
+
 **当前问题**
 
-健康资料属于高价值数据，一旦丢失会严重影响用户信任。
+需在托管平台开启自动备份，并完成至少一次隔离环境恢复演练。
 
 **开发任务**
 
@@ -237,6 +242,7 @@ P2 可以作为产品成熟度提升项，不阻塞第一版上线。
 
 - 新增 GitHub Actions CI：`.github/workflows/ci.yml`
 - PR 与 main 推送时自动 `prisma generate`、`npm run build`、核心单元测试
+- Vercel 部署指南：[vercel-deployment.md](./vercel-deployment.md)
 
 **开发任务**
 
