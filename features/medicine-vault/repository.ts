@@ -22,6 +22,12 @@ import {
   medicines as mockMedicines,
   visitPreparations as mockVisitPreparations,
 } from "@/features/medicine-vault/data"
+import type { MedicineImageAttachment } from "@/features/medicine-vault/medicine-request"
+import {
+  deleteMedicineImageAsset,
+  persistMedicineImage,
+  resolveMedicineImageAsset,
+} from "@/features/medicine-vault/medicine-image-storage"
 import {
   DEFAULT_MEDICINE_PAGE_SIZE,
   paginateMedicines,
@@ -36,7 +42,6 @@ import type {
   UpdateMemberInput,
 } from "@/features/medicine-vault/schemas"
 import type { MedicalAttachmentFile } from "@/features/medicine-vault/medical-attachment-request"
-import type { MedicineImageAttachment } from "@/features/medicine-vault/medicine-request"
 
 export type MedicinePageQuery = Readonly<{
   memberId?: string
@@ -155,6 +160,7 @@ function mapMedicine(medicine: {
   storageLocation: string
   usageNote: string
   safetyNote: string
+  imageKey?: string | null
   imageBytes?: Uint8Array | Buffer | null
   imageName?: string | null
 }): Medicine {
@@ -173,7 +179,7 @@ function mapMedicine(medicine: {
     storageLocation: medicine.storageLocation,
     usageNote: medicine.usageNote,
     safetyNote: medicine.safetyNote,
-    hasImage: Boolean(medicine.imageBytes?.length),
+    hasImage: Boolean(medicine.imageKey || medicine.imageBytes?.length),
     imageName: medicine.imageName ?? undefined,
   }
 }
@@ -574,22 +580,18 @@ export async function getMedicineImageById(ctx: RepositoryContext, medicineId: s
       },
       select: {
         name: true,
+        imageKey: true,
         imageBytes: true,
         imageMimeType: true,
         imageName: true,
       },
     })
 
-    if (!medicine?.imageBytes?.length) {
+    if (!medicine) {
       return undefined
     }
 
-    return {
-      name: medicine.name,
-      imageBytes: medicine.imageBytes,
-      imageMimeType: medicine.imageMimeType ?? "image/jpeg",
-      imageName: medicine.imageName ?? `${medicine.name}.jpg`,
-    }
+    return resolveMedicineImageAsset(medicine)
   } catch {
     return undefined
   }
@@ -916,13 +918,25 @@ export async function createMedicine(
       storageLocation: fallbackText(input.storageLocation, "待补充存放位置。"),
       usageNote: fallbackText(input.usageNote, "通过原型表单录入。"),
       safetyNote: fallbackText(input.safetyNote, "后续需要补充更具体的用药风险提示。"),
-      imageBytes: image?.bytes,
-      imageMimeType: image?.mimeType,
-      imageName: image?.name,
     },
   })
 
-  return mapMedicine(medicine)
+  if (!image) {
+    return mapMedicine(medicine)
+  }
+
+  const imageData = await persistMedicineImage(ctx.userId, medicine.id, image)
+  const updatedMedicine = await prisma.medicine.update({
+    where: { id: medicine.id },
+    data: {
+      imageKey: imageData.imageKey,
+      imageBytes: imageData.imageBytes as Uint8Array<ArrayBuffer> | null,
+      imageMimeType: imageData.imageMimeType,
+      imageName: imageData.imageName,
+    },
+  })
+
+  return mapMedicine(updatedMedicine)
 }
 
 export async function updateMedicine(
@@ -945,6 +959,22 @@ export async function updateMedicine(
     throw new Error("药品记录不存在或不属于当前用户。")
   }
 
+  const existingImage = await prisma.medicine.findFirst({
+    where: {
+      id: medicineId,
+      userId: ctx.userId,
+    },
+    select: {
+      imageKey: true,
+    },
+  })
+
+  const imageData = image ? await persistMedicineImage(ctx.userId, medicineId, image) : null
+
+  if (image && existingImage?.imageKey && existingImage.imageKey !== imageData?.imageKey) {
+    await deleteMedicineImageAsset(existingImage.imageKey)
+  }
+
   const medicine = await prisma.medicine.update({
     where: { id: medicineId },
     data: {
@@ -960,11 +990,12 @@ export async function updateMedicine(
       usageNote: fallbackText(input.usageNote, "通过原型表单录入。"),
       safetyNote: fallbackText(input.safetyNote, "后续需要补充更具体的用药风险提示。"),
       expiresAt: toDateOnly(input.expiresAt),
-      ...(image
+      ...(imageData
         ? {
-            imageBytes: image.bytes,
-            imageMimeType: image.mimeType,
-            imageName: image.name,
+            imageKey: imageData.imageKey,
+            imageBytes: imageData.imageBytes as Uint8Array<ArrayBuffer> | null,
+            imageMimeType: imageData.imageMimeType,
+            imageName: imageData.imageName,
           }
         : {}),
     },
@@ -985,6 +1016,18 @@ export async function deleteMedicine(ctx: RepositoryContext, medicineId: string)
   if (!existingMedicine) {
     throw new Error("药品记录不存在或不属于当前用户。")
   }
+
+  const existingImage = await prisma.medicine.findFirst({
+    where: {
+      id: medicineId,
+      userId: ctx.userId,
+    },
+    select: {
+      imageKey: true,
+    },
+  })
+
+  await deleteMedicineImageAsset(existingImage?.imageKey)
 
   const medicine = await prisma.medicine.delete({
     where: { id: medicineId },

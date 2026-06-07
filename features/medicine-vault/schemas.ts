@@ -54,13 +54,18 @@ export const createAllergyRecordSchema = z.object({
 })
 
 export const vaultSearchSchema = z.object({
-  query: z.string().trim().min(1, "请输入搜索关键词。"),
+  query: z.string().trim().min(1, "请输入搜索关键词。").max(200, "搜索关键词过长。"),
+  memberId: z.string().trim().min(1).optional(),
+})
+
+export const assistantQuerySchema = z.object({
+  question: z.string().trim().min(1, "请输入一个问题后再发送。").max(500, "问题长度不能超过 500 字。"),
   memberId: z.string().trim().min(1).optional(),
 })
 
 export const generateVisitPreparationSchema = z.object({
   memberId: z.string().trim().min(1, "请选择成员。"),
-  concern: z.string().trim().min(1, "请描述就医场景或关注点。"),
+  concern: z.string().trim().min(1, "请描述就医场景或关注点。").max(500, "描述长度不能超过 500 字。"),
 })
 
 export const visitPreparationGeneratedSchema = z.object({

@@ -1,4 +1,5 @@
 import { createMedicineSchema, type CreateMedicineInput } from "@/features/medicine-vault/schemas"
+import { assertValidImageUpload } from "@/features/medicine-vault/upload-validation"
 
 export type MedicineImageAttachment = {
   bytes: Uint8Array<ArrayBuffer>
@@ -43,6 +44,8 @@ async function parseMultipartPayload(request: Request): Promise<MedicineSubmissi
   if (!(file instanceof File) || file.size === 0) {
     return { input }
   }
+
+  assertValidImageUpload(file)
 
   return {
     input,
