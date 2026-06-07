@@ -30,6 +30,22 @@ type ExtractResult = {
   warnings: string[]
 }
 
+type AllergyCrossCheckWarning = {
+  allergyRecordId: string
+  allergen: string
+  severity: "轻微" | "中等" | "严重"
+  reaction: string
+  matchedTerms: string[]
+  matchedFields: string[]
+  message: string
+}
+
+type AllergyCrossCheckResult = {
+  warnings: AllergyCrossCheckWarning[]
+  hasRisk: boolean
+  disclaimer: string
+}
+
 const fields = [
   { name: "name", label: "药品名称", placeholder: "例如：阿莫西林胶囊" },
   { name: "category", label: "分类", placeholder: "例如：抗感染" },
@@ -105,6 +121,7 @@ export function MedicineEntryDialog({
   const [aiSummary, setAiSummary] = useState("")
   const [originalText, setOriginalText] = useState("")
   const [warnings, setWarnings] = useState<string[]>([])
+  const [allergyCrossCheck, setAllergyCrossCheck] = useState<AllergyCrossCheckResult | null>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
 
   function resetDialog() {
@@ -119,6 +136,7 @@ export function MedicineEntryDialog({
     setAiSummary("")
     setOriginalText("")
     setWarnings([])
+    setAllergyCrossCheck(null)
   }
 
   function updateValue(name: string, value: string) {
@@ -176,6 +194,7 @@ export function MedicineEntryDialog({
 
       const formData = new FormData()
       formData.append("image", imageFile)
+      formData.append("memberId", memberId)
 
       const response = await fetch("/api/medicines/extract", {
         method: "POST",
@@ -184,6 +203,7 @@ export function MedicineEntryDialog({
       const result = (await response.json()) as {
         message?: string
         data?: ExtractResult
+        allergyCrossCheck?: AllergyCrossCheckResult | null
       }
 
       if (!response.ok || !result.data) {
@@ -202,6 +222,7 @@ export function MedicineEntryDialog({
       setAiSummary(result.data.summary)
       setOriginalText(result.data.originalText)
       setWarnings(result.data.warnings)
+      setAllergyCrossCheck(result.allergyCrossCheck ?? null)
       setSuccessMessage(result.message ?? "图片识别完成，已回填到表单。")
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "图片识别失败。")
@@ -363,6 +384,26 @@ export function MedicineEntryDialog({
                 选中的图片会直接展示在这里，保存时也会一并入库，后续可以直接按药品记录回看。
               </p>
             </div>
+
+            {allergyCrossCheck?.hasRisk ? (
+              <div className="rounded-xl border-2 border-red-300 bg-red-50 p-4 text-sm leading-6 text-red-900 shadow-sm">
+                <p className="font-semibold text-red-800">过敏交叉检查提醒</p>
+                <p className="mt-1 text-xs leading-5 text-red-700">{allergyCrossCheck.disclaimer}</p>
+                <ul className="mt-3 grid gap-3">
+                  {allergyCrossCheck.warnings.map((warning) => (
+                    <li className="rounded-lg border border-red-200 bg-white/80 p-3" key={warning.allergyRecordId}>
+                      <p className="font-medium text-red-800">
+                        过敏原：{warning.allergen}
+                        <span className="ml-2 text-xs font-normal text-red-600">（{warning.severity}）</span>
+                      </p>
+                      <p className="mt-1 text-red-700">{warning.message}</p>
+                      <p className="mt-2 text-xs text-red-600">过敏记录反应：{warning.reaction}</p>
+                      <p className="mt-1 text-xs text-red-600">匹配关键词：{warning.matchedTerms.join("、")}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
 
             {aiSummary || originalText || warnings.length > 0 ? (
               <div className="grid gap-3">
