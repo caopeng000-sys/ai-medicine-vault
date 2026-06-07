@@ -12,7 +12,7 @@ import {
   SyringeIcon,
 } from "lucide-react"
 
-import { MockEntryDialog } from "@/components/medicine-vault/mock-entry-dialog"
+import { MedicalRecordEntryDialog } from "@/components/medicine-vault/medical-record-entry-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -59,31 +59,10 @@ export default async function RecordsPage({
               </p>
             </div>
 
-            <MockEntryDialog
-              description="先把病历录入流程做成可点击原型，后续再接数据库和成员关联。"
-              fields={[
-                { label: "就诊日期", name: "visitedAt", placeholder: "例如：2026-04-25" },
-                { label: "医院与科室", name: "hospital", placeholder: "例如：市立医院 / 呼吸科" },
-                { label: "诊断结论", name: "diagnosis", placeholder: "例如：上呼吸道感染倾向" },
-                {
-                  label: "症状描述",
-                  name: "symptoms",
-                  placeholder: "记录就诊时的主要症状和持续时间。",
-                  type: "textarea",
-                },
-                {
-                  label: "医生建议",
-                  name: "advice",
-                  placeholder: "记录复诊建议、观察点和禁忌提醒。",
-                  type: "textarea",
-                },
-            ]}
-            endpoint="/api/records"
-            payload={{ memberId: currentMember?.id ?? members[0]?.id ?? "" }}
-            submitLabel="保存病历"
-            title="新增病历原型"
-            triggerLabel="新增病历"
-          />
+            <MedicalRecordEntryDialog
+              memberId={currentMember?.id ?? members[0]?.id ?? ""}
+              triggerLabel="新增病历"
+            />
           </div>
 
           <div className="grid gap-3 lg:grid-cols-3">
