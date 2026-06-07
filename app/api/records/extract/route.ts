@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 
+import { requireCurrentUser } from "@/features/medicine-vault/auth-context"
 import { extractMedicalRecordFromImage } from "@/features/medicine-vault/medical-record-extractor"
+import { aiImageExtractRateLimiter, rateLimitResponse } from "@/features/medicine-vault/rate-limiter"
 
 const MAX_FILE_SIZE = 8 * 1024 * 1024
 
@@ -15,6 +17,13 @@ function toDataUrl(file: File, buffer: Buffer) {
 
 export async function POST(request: Request) {
   try {
+    const ctx = await requireCurrentUser()
+    const rateLimit = aiImageExtractRateLimiter.checkRateLimit(`record:${ctx.userId}`)
+
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit.retryAfterSeconds)
+    }
+
     const formData = await request.formData()
     const file = formData.get("image")
 

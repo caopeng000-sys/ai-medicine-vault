@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { crossCheckMedicineForMember } from "@/features/medicine-vault/allergy-cross-check"
 import { requireCurrentUser } from "@/features/medicine-vault/auth-context"
 import { extractMedicineFromImage } from "@/features/medicine-vault/medicine-image-extractor"
+import { aiImageExtractRateLimiter, rateLimitResponse } from "@/features/medicine-vault/rate-limiter"
 import { listAllergyRecords } from "@/features/medicine-vault/repository"
 
 const MAX_FILE_SIZE = 8 * 1024 * 1024
@@ -18,6 +19,13 @@ function toDataUrl(file: File, buffer: Buffer) {
 
 export async function POST(request: Request) {
   try {
+    const ctx = await requireCurrentUser()
+    const rateLimit = aiImageExtractRateLimiter.checkRateLimit(ctx.userId)
+
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit.retryAfterSeconds)
+    }
+
     const formData = await request.formData()
     const file = formData.get("image")
     const memberIdValue = formData.get("memberId")
@@ -41,7 +49,6 @@ export async function POST(request: Request) {
     let allergyCrossCheck = null
 
     if (memberId) {
-      const ctx = await requireCurrentUser()
       const allergies = await listAllergyRecords(ctx, memberId)
       allergyCrossCheck = crossCheckMedicineForMember(memberId, extracted, allergies)
     }

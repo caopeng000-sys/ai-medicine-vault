@@ -53,11 +53,11 @@ P2 可以作为产品成熟度提升项，不阻塞第一版上线。
 
 **当前进展**
 
-已完成第一阶段数据隔离骨架：新增 `User` 模型、业务表 `userId`、`RepositoryContext`、页面/API 当前用户上下文和 owner-scoped repository 查询。当前仍使用开发环境固定用户，生产上线前必须接入真实 Auth.js session。
+已完成 Auth.js 登录接入（GitHub OAuth、session、`middleware` 路由保护、登录页）。repository 层继续通过 `RepositoryContext` 按用户过滤。开发环境仍保留 `user-development` 回退；生产环境必须登录。
 
 **当前问题**
 
-当前成员、病历、药品等数据还没有账号级隔离。真实上线后，如果没有用户身份边界，健康资料会存在严重越权风险。
+历史文档描述的问题已解决。后续需在生产环境配置 `AUTH_SECRET`、GitHub OAuth 与托管 PostgreSQL，并执行 `npm run prisma:deploy`。
 
 **开发任务**
 
@@ -80,6 +80,12 @@ P2 可以作为产品成熟度提升项，不阻塞第一版上线。
 **目标**
 
 将本地 PostgreSQL 迁移为可上线使用的托管数据库，并建立稳定迁移流程。
+
+**当前进展**
+
+- 迁移文件已纳入版本控制（含 Auth.js 模型）
+- 新增 `npm run prisma:deploy` 用于生产部署
+- 详见 [production-database-setup.md](./production-database-setup.md)
 
 **当前问题**
 
@@ -161,7 +167,7 @@ P2 可以作为产品成熟度提升项，不阻塞第一版上线。
 
 **当前问题**
 
-当前已经接入阿里百炼，但还需要限流、调用记录和更清晰的错误兜底。
+当前已经接入阿里百炼，但还需要限流、调用记录和更清晰的错误兜底。助手查询与图片识别接口已加入基础内存限流（单实例有效）。
 
 **开发任务**
 
