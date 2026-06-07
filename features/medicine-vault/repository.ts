@@ -458,7 +458,7 @@ export async function getMedicineImageById(ctx: RepositoryContext, medicineId: s
   }
 }
 
-export async function listAllergyRecords(ctx: RepositoryContext, memberId?: string) {
+export async function listAllergyRecords(ctx: RepositoryContext, memberId?: string): Promise<AllergyRecord[]> {
   const prisma = getPrismaClient()
 
   if (!prisma) {

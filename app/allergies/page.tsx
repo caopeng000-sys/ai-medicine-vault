@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { requireCurrentUser } from "@/features/medicine-vault/auth-context"
+import type { AllergyRecord } from "@/features/medicine-vault/data"
 import { getMemberById, listAllergyRecords, listMembers } from "@/features/medicine-vault/repository"
 
 const severityVariant = {
@@ -35,11 +36,12 @@ export default async function AllergiesPage({
 }>) {
   const { member } = await searchParams
   const ctx = await requireCurrentUser()
-  const [members, visibleAllergies, currentMember] = await Promise.all([
+  const [members, allergyRecords, currentMember] = await Promise.all([
     listMembers(ctx),
     listAllergyRecords(ctx, member),
     member ? getMemberById(ctx, member) : Promise.resolve(undefined),
   ])
+  const visibleAllergies: AllergyRecord[] = allergyRecords
 
   const severeCount = visibleAllergies.filter((item) => item.severity === "严重").length
   const monitoredCount = visibleAllergies.filter((item) => item.severity !== "轻微").length
