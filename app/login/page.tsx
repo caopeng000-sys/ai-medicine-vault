@@ -52,9 +52,15 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           </p>
         </div>
 
-        <div className="mt-8 text-center">
-          <Link className="text-sm text-emerald-700 hover:text-emerald-800" href="/">
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-4 text-sm">
+          <Link className="text-emerald-700 hover:text-emerald-800" href="/">
             返回首页
+          </Link>
+          <Link className="text-slate-500 hover:text-slate-700" href="/privacy">
+            隐私政策
+          </Link>
+          <Link className="text-slate-500 hover:text-slate-700" href="/disclaimer">
+            免责声明
           </Link>
         </div>
       </div>
