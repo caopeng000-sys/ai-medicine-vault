@@ -6,6 +6,7 @@ import {
   buildAllergyMatches,
   buildVisitPrepSources,
   detectAssistantIntent,
+  detectOpenQueryIntent,
   findAntiallergicMedicines,
   findRecentColdRecord,
   parseAssistantIntent,
@@ -64,5 +65,16 @@ describe("assistant routing helpers", () => {
     assert.ok(result.some((source) => source.label.startsWith("病历")))
     assert.ok(result.some((source) => source.label.startsWith("过敏")))
     assert.ok(result.some((source) => source.label.startsWith("药品")))
+  })
+
+  it("detects open-ended RAG questions", () => {
+    assert.equal(detectOpenQueryIntent("我在哪次检查里查到过血糖偏高？"), "open_query")
+    assert.equal(detectOpenQueryIntent("家里有哪些抗过敏药？"), null)
+  })
+
+  it("parses open_query intent from JSON text", () => {
+    const result = parseAssistantIntent('{"intent":"open_query","reason":"开放性资料检索"}')
+
+    assert.equal(result.intent, "open_query")
   })
 })

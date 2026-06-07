@@ -5,6 +5,7 @@ import type { RepositoryContext } from "@/features/medicine-vault/auth-context"
 import type {
   AiConversationRecord,
   AllergyRecord,
+  HealthDocumentChunkRecord,
   MedicalRecord,
   Member,
   Medicine,
@@ -12,6 +13,7 @@ import type {
 } from "@/features/medicine-vault/data"
 import {
   aiConversations as mockAiConversations,
+  healthDocumentChunks as mockHealthDocumentChunks,
   allergyRecords as mockAllergyRecords,
   medicalRecords as mockMedicalRecords,
   members as mockMembers,
@@ -952,4 +954,160 @@ export async function createAllergyRecord(ctx: RepositoryContext, input: CreateA
   })
 
   return mapAllergyRecord(record)
+}
+
+export type UpsertHealthDocumentChunkInput = Readonly<{
+  id: string
+  memberId?: string
+  sourceType: string
+  sourceId: string
+  title: string
+  content: string
+  embedding: number[]
+}>
+
+function parseEmbedding(value: unknown): number[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is number => typeof item === "number" && Number.isFinite(item))
+}
+
+function mapHealthDocumentChunk(item: {
+  id: string
+  userId: string
+  memberId: string | null
+  sourceType: string
+  sourceId: string
+  title: string
+  content: string
+  embedding: unknown
+  createdAt: Date
+  updatedAt: Date
+}): HealthDocumentChunkRecord {
+  return {
+    id: item.id,
+    userId: item.userId,
+    memberId: item.memberId ?? undefined,
+    sourceType: item.sourceType,
+    sourceId: item.sourceId,
+    title: item.title,
+    content: item.content,
+    embedding: parseEmbedding(item.embedding),
+    createdAt: item.createdAt.toISOString(),
+    updatedAt: item.updatedAt.toISOString(),
+  }
+}
+
+export async function upsertHealthDocumentChunks(
+  ctx: RepositoryContext,
+  chunks: ReadonlyArray<UpsertHealthDocumentChunkInput>,
+) {
+  const prisma = getPrismaClient()
+  const now = new Date().toISOString()
+  if (!prisma) {
+    for (const chunk of chunks) {
+      const existingIndex = mockHealthDocumentChunks.findIndex(
+        (item) => item.userId === ctx.userId && item.sourceType === chunk.sourceType && item.sourceId === chunk.sourceId,
+      )
+      const record: HealthDocumentChunkRecord = {
+        id: chunk.id,
+        userId: ctx.userId,
+        memberId: chunk.memberId,
+        sourceType: chunk.sourceType,
+        sourceId: chunk.sourceId,
+        title: chunk.title,
+        content: chunk.content,
+        embedding: chunk.embedding,
+        createdAt: existingIndex === -1 ? now : mockHealthDocumentChunks[existingIndex]!.createdAt,
+        updatedAt: now,
+      }
+      if (existingIndex === -1) mockHealthDocumentChunks.push(record)
+      else mockHealthDocumentChunks[existingIndex] = record
+    }
+    return chunks.length
+  }
+  try {
+    await prisma.$transaction(
+      chunks.map((chunk) =>
+        prisma.healthDocumentChunk.upsert({
+          where: { userId_sourceType_sourceId: { userId: ctx.userId, sourceType: chunk.sourceType, sourceId: chunk.sourceId } },
+          create: {
+            id: chunk.id,
+            userId: ctx.userId,
+            memberId: chunk.memberId,
+            sourceType: chunk.sourceType,
+            sourceId: chunk.sourceId,
+            title: chunk.title,
+            content: chunk.content,
+            embedding: chunk.embedding,
+          },
+          update: { memberId: chunk.memberId, title: chunk.title, content: chunk.content, embedding: chunk.embedding },
+        }),
+      ),
+    )
+    return chunks.length
+  } catch {
+    for (const chunk of chunks) {
+      const existingIndex = mockHealthDocumentChunks.findIndex(
+        (item) => item.userId === ctx.userId && item.sourceType === chunk.sourceType && item.sourceId === chunk.sourceId,
+      )
+      const record: HealthDocumentChunkRecord = {
+        id: chunk.id,
+        userId: ctx.userId,
+        memberId: chunk.memberId,
+        sourceType: chunk.sourceType,
+        sourceId: chunk.sourceId,
+        title: chunk.title,
+        content: chunk.content,
+        embedding: chunk.embedding,
+        createdAt: existingIndex === -1 ? now : mockHealthDocumentChunks[existingIndex]!.createdAt,
+        updatedAt: now,
+      }
+      if (existingIndex === -1) mockHealthDocumentChunks.push(record)
+      else mockHealthDocumentChunks[existingIndex] = record
+    }
+    return chunks.length
+  }
+}
+
+export async function listHealthDocumentChunks(ctx: RepositoryContext, memberId?: string) {
+  const prisma = getPrismaClient()
+  if (!prisma) {
+    return mockHealthDocumentChunks.filter((item) => item.userId === ctx.userId).filter((item) => (memberId ? item.memberId === memberId : true))
+  }
+  try {
+    const items = await prisma.healthDocumentChunk.findMany({
+      where: { userId: ctx.userId, ...(memberId ? { memberId } : {}) },
+      orderBy: { updatedAt: "desc" },
+    })
+    return items.map(mapHealthDocumentChunk)
+  } catch {
+    return mockHealthDocumentChunks.filter((item) => item.userId === ctx.userId).filter((item) => (memberId ? item.memberId === memberId : true))
+  }
+}
+
+export async function deleteStaleChunks(
+  ctx: RepositoryContext,
+  activeKeys: ReadonlyArray<Readonly<{ sourceType: string; sourceId: string }>>,
+) {
+  const prisma = getPrismaClient()
+  const activeKeySet = new Set(activeKeys.map((item) => `${item.sourceType}:${item.sourceId}`))
+  if (!prisma) {
+    for (let index = mockHealthDocumentChunks.length - 1; index >= 0; index -= 1) {
+      const item = mockHealthDocumentChunks[index]!
+      if (item.userId !== ctx.userId) continue
+      if (!activeKeySet.has(`${item.sourceType}:${item.sourceId}`)) mockHealthDocumentChunks.splice(index, 1)
+    }
+    return
+  }
+  try {
+    const items = await prisma.healthDocumentChunk.findMany({ where: { userId: ctx.userId }, select: { id: true, sourceType: true, sourceId: true } })
+    const staleIds = items.filter((item) => !activeKeySet.has(`${item.sourceType}:${item.sourceId}`)).map((item) => item.id)
+    if (staleIds.length > 0) await prisma.healthDocumentChunk.deleteMany({ where: { id: { in: staleIds } } })
+  } catch {
+    for (let index = mockHealthDocumentChunks.length - 1; index >= 0; index -= 1) {
+      const item = mockHealthDocumentChunks[index]!
+      if (item.userId !== ctx.userId) continue
+      if (!activeKeySet.has(`${item.sourceType}:${item.sourceId}`)) mockHealthDocumentChunks.splice(index, 1)
+    }
+  }
 }

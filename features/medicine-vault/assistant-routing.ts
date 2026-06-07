@@ -5,6 +5,7 @@ export type AssistantIntent =
   | "medicine_query"
   | "allergy_query"
   | "visit_prep_query"
+  | "open_query"
   | "unsupported"
 
 export type AssistantIntentParseResult = Readonly<{
@@ -68,6 +69,7 @@ const SUPPORTED_INTENTS = new Set<AssistantIntent>([
   "medicine_query",
   "allergy_query",
   "visit_prep_query",
+  "open_query",
 ])
 
 export function parseAssistantIntent(rawText: string): AssistantIntentParseResult {
@@ -142,6 +144,42 @@ export function detectAssistantIntent(question: string): AssistantIntent {
   }
 
   return "unsupported"
+}
+
+export function detectOpenQueryIntent(question: string): "open_query" | null {
+  const normalized = question.trim()
+
+  if (!normalized) {
+    return null
+  }
+
+  const openQueryKeywords = [
+    "报告",
+    "记录里",
+    "记录中",
+    "查到过",
+    "哪次",
+    "有没有",
+    "趋势",
+    "化验",
+    "检查",
+    "血糖",
+    "白细胞",
+    "血压",
+    "档案",
+    "资料里",
+    "之前",
+    "曾经",
+    "历史",
+    "在哪",
+    "什么时候",
+  ]
+
+  if (openQueryKeywords.some((keyword) => normalized.includes(keyword))) {
+    return "open_query"
+  }
+
+  return null
 }
 
 export function findRecentColdRecord(records: MedicalRecord[], members: Member[]): AssistantRecordMatch | undefined {

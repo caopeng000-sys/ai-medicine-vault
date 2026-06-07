@@ -62,6 +62,19 @@ export type VisitPreparation = {
   questions: string[]
 }
 
+export type HealthDocumentChunkRecord = {
+  id: string
+  userId: string
+  memberId?: string
+  sourceType: string
+  sourceId: string
+  title: string
+  content: string
+  embedding: number[]
+  createdAt: string
+  updatedAt: string
+}
+
 export type AiConversationRecord = {
   id: string
   userId: string
@@ -365,6 +378,8 @@ export const visitPreparations: VisitPreparation[] = [
 ]
 
 export const aiConversations: AiConversationRecord[] = []
+
+export const healthDocumentChunks: HealthDocumentChunkRecord[] = []
 
 export function getMemberById(memberId: string) {
   return members.find((member) => member.id === memberId)

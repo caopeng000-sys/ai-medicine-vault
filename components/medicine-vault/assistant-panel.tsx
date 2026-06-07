@@ -26,6 +26,7 @@ const suggestedQuestions = [
   "家里有哪些抗过敏药？",
   "我之前对哪些药有过不适？",
   "下次看医生前应该准备哪些问题？",
+  "小朋友有没有海鲜过敏记录？",
 ]
 
 const intentLabels: Record<AssistantIntent, string> = {
@@ -33,6 +34,7 @@ const intentLabels: Record<AssistantIntent, string> = {
   medicine_query: "药品查询",
   allergy_query: "过敏记录",
   visit_prep_query: "就医准备",
+  open_query: "资料检索",
   unsupported: "未支持",
 }
 
@@ -146,7 +148,7 @@ export function AssistantPanel() {
                 </Badge>
               </div>
               <p className="max-w-3xl text-sm leading-6 text-slate-500">
-                先识别你在问什么，再去查病历、药品或过敏记录，最后返回带来源依据的答案。当前支持 4 类推荐问题。
+                先识别你在问什么，再去查病历、药品或过敏记录，最后返回带来源依据的答案。当前支持 5 类推荐问题，并支持开放性资料检索。
               </p>
             </div>
 
@@ -164,8 +166,8 @@ export function AssistantPanel() {
                 <MessageSquareTextIcon className="size-4 text-violet-500" aria-hidden="true" />
                 支持意图
               </p>
-              <p className="mt-3 text-3xl font-semibold text-slate-950">4</p>
-              <p className="mt-1 text-sm text-slate-500">推荐问题已全部接通，回答稳定且带来源。</p>
+              <p className="mt-3 text-3xl font-semibold text-slate-950">5</p>
+              <p className="mt-1 text-sm text-slate-500">推荐问题与 RAG 资料检索均已接通，回答带来源。</p>
             </div>
 
             <div className="rounded-2xl border border-emerald-100 bg-emerald-50/85 p-4">
