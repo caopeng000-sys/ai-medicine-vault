@@ -4,6 +4,10 @@ import { guardAiText, HIGH_RISK_QUESTION_TEMPLATE, isHighRiskQuestion } from "./
 import type { RepositoryContext } from "./auth-context"
 import type { AllergyRecord, MedicalRecord, Medicine, Member } from "./data"
 import {
+  filterByMemberId,
+  filterMembersById,
+} from "./member-context-resolver"
+import {
   listAllergyRecords,
   listMedicalRecords,
   listMedicines,
@@ -222,10 +226,13 @@ const defaultDependencies: VaultSearchDependencies = {
   summarizeResults: defaultSummarizeResults,
 }
 
+export type VaultSearchOptions = Readonly<{ memberId?: string }>
+
 export async function searchVault(
   ctx: RepositoryContext,
   query: string,
   dependencies: Partial<VaultSearchDependencies> = {},
+  options: VaultSearchOptions = {},
 ): Promise<VaultSearchResponse> {
   const runtime = {
     ...defaultDependencies,
@@ -259,10 +266,14 @@ export async function searchVault(
     runtime.listAllergyRecords(ctx),
   ])
 
-  const memberResults = searchMembers(members, normalizedQuery)
-  const recordResults = searchRecords(records, members, normalizedQuery)
-  const medicineResults = searchMedicines(medicines, members, normalizedQuery)
-  const allergyResults = searchAllergies(allergies, members, normalizedQuery)
+  const scopedMembers = filterMembersById(members, options.memberId)
+  const scopedRecords = filterByMemberId(records, options.memberId)
+  const scopedMedicines = filterByMemberId(medicines, options.memberId)
+  const scopedAllergies = filterByMemberId(allergies, options.memberId)
+  const memberResults = searchMembers(scopedMembers, normalizedQuery)
+  const recordResults = searchRecords(scopedRecords, scopedMembers, normalizedQuery)
+  const medicineResults = searchMedicines(scopedMedicines, scopedMembers, normalizedQuery)
+  const allergyResults = searchAllergies(scopedAllergies, scopedMembers, normalizedQuery)
 
   const results = [...memberResults, ...recordResults, ...medicineResults, ...allergyResults]
   const summary = guardAiText(await runtime.summarizeResults({ query, results }))

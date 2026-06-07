@@ -7,6 +7,10 @@ import type { AllergyRecord, MedicalRecord, Medicine, Member } from "./data"
 import { indexHealthData } from "./health-data-indexer"
 import { retrieveRelevantChunks } from "./health-data-retrieval"
 import {
+  filterByMemberId,
+  filterMembersById,
+} from "./member-context-resolver"
+import {
   listAllergyRecords,
   listMedicalRecords,
   listMedicines,
@@ -95,10 +99,13 @@ const defaultDependencies: RagQueryDependencies = {
   summarizeAnswer: defaultSummarizeAnswer,
 }
 
+export type RagQueryOptions = Readonly<{ memberId?: string }>
+
 export async function answerRagQuery(
   ctx: RepositoryContext,
   question: string,
   dependencies: Partial<RagQueryDependencies> = {},
+  options: RagQueryOptions = {},
 ): Promise<RagQueryResponse> {
   const runtime = {
     ...defaultDependencies,
@@ -114,7 +121,7 @@ export async function answerRagQuery(
     runtime.listAllergyRecords(ctx),
   ])
 
-  const chunks = indexHealthData({ members, records, medicines, allergies })
+  const chunks = indexHealthData({ members: filterMembersById(members, options.memberId), records: filterByMemberId(records, options.memberId), medicines: filterByMemberId(medicines, options.memberId), allergies: filterByMemberId(allergies, options.memberId) })
   const relevantChunks = retrieveRelevantChunks(normalizedQuestion, chunks)
   const sources = chunksToSources(relevantChunks)
   const context = relevantChunks

@@ -55,6 +55,7 @@ export const createAllergyRecordSchema = z.object({
 
 export const vaultSearchSchema = z.object({
   query: z.string().trim().min(1, "请输入搜索关键词。"),
+  memberId: z.string().trim().min(1).optional(),
 })
 
 export const generateVisitPreparationSchema = z.object({

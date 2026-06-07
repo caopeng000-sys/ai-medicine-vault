@@ -6,6 +6,7 @@ import { LoaderCircleIcon, SearchIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import type { Member } from "@/features/medicine-vault/data"
 import type { SearchResultItem, VaultSearchResponse } from "@/features/medicine-vault/search-service"
 import { cn } from "@/lib/utils"
 
@@ -24,6 +25,9 @@ export function GlobalSearch() {
   const [error, setError] = useState("")
   const [open, setOpen] = useState(false)
   const [result, setResult] = useState<VaultSearchResponse | null>(null)
+  const [members, setMembers] = useState<Member[]>([])
+  const [memberId, setMemberId] = useState("")
+  useEffect(() => { void fetch("/api/members").then((r) => r.json()).then((p) => setMembers(p.members ?? [])).catch(() => setMembers([])) }, [])
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
@@ -56,7 +60,7 @@ export function GlobalSearch() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ query: trimmedQuery }),
+        body: JSON.stringify({ query: trimmedQuery, ...(memberId ? { memberId } : {}) }),
       })
 
       const payload = (await response.json()) as VaultSearchResponse & { message?: string }
@@ -77,13 +81,13 @@ export function GlobalSearch() {
   return (
     <div className="relative min-w-0 flex-1" ref={containerRef}>
       <form
-        className="flex min-w-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
+        className="flex min-w-0 flex-col gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm lg:flex-row lg:items-center lg:gap-3"
         onSubmit={(event) => {
           event.preventDefault()
           void handleSearch()
         }}
       >
-        <SearchIcon className="size-4 text-slate-400" aria-hidden="true" />
+        {members.length > 0 ? <select aria-label="成员筛选" className="h-9 shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-2 text-xs lg:max-w-[8.5rem]" onChange={(e) => setMemberId(e.target.value)} value={memberId}><option value="">全部成员</option>{members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select> : null}<SearchIcon className="size-4 text-slate-400" aria-hidden="true" />
         <Input
           aria-controls={open ? listboxId : undefined}
           aria-expanded={open}

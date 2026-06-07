@@ -17,6 +17,7 @@ import {
   parseAssistantIntent,
   type AssistantIntent,
 } from "./assistant-routing"
+import { filterByMemberId, filterMembersById, resolveMemberFromHint, resolveMemberFromQuestion } from "./member-context-resolver"
 import { answerRagQuery } from "./rag-query-service"
 
 export type AssistantSource = Readonly<{
@@ -372,6 +373,8 @@ async function defaultSummarizeVisitPrep(input: {
   return rawText.trim()
 }
 
+export type AssistantQueryOptions = Readonly<{ memberId?: string }>
+function resolveEffectiveMemberId(question: string, members: Member[], explicitMemberId?: string): string | undefined { if (explicitMemberId) return resolveMemberFromHint(explicitMemberId, members) ?? explicitMemberId; return resolveMemberFromQuestion(question, members) }
 const defaultDependencies: AssistantDependencies = {
   classifyQuestion: defaultClassifyQuestion,
   selectMedicines: defaultSelectMedicines,
@@ -387,6 +390,7 @@ export async function resolveAssistantQuery(
   ctx: RepositoryContext,
   question: string,
   dependencies: Partial<AssistantDependencies> = {},
+  options: AssistantQueryOptions = {},
 ): Promise<AssistantQueryResponse> {
   const runtime = {
     ...defaultDependencies,
@@ -423,8 +427,10 @@ export async function resolveAssistantQuery(
     }
   }
 
+  const members = await runtime.listMembers(ctx)
+  const effectiveMemberId = resolveEffectiveMemberId(normalizedQuestion, members, options.memberId)
   if (classification.intent === "open_query") {
-    const ragResult = await answerRagQuery(ctx, normalizedQuestion)
+    const ragResult = await answerRagQuery(ctx, normalizedQuestion, {}, { memberId: effectiveMemberId })
 
     return {
       intent: "open_query",
@@ -434,8 +440,9 @@ export async function resolveAssistantQuery(
   }
 
   if (classification.intent === "recent_cold_record") {
-    const [members, records] = await Promise.all([runtime.listMembers(ctx), runtime.listMedicalRecords(ctx)])
-    const match = findRecentColdRecord(records, members)
+    const records = filterByMemberId(await runtime.listMedicalRecords(ctx), effectiveMemberId)
+    const scopedMembers = filterMembersById(members, effectiveMemberId)
+    const match = findRecentColdRecord(records, scopedMembers)
 
     if (!match) {
       return {
@@ -475,8 +482,9 @@ export async function resolveAssistantQuery(
   }
 
   if (classification.intent === "medicine_query") {
-    const [members, medicines] = await Promise.all([runtime.listMembers(ctx), runtime.listMedicines(ctx)])
-    const selection = await runtime.selectMedicines(normalizedQuestion, medicines, members)
+    const medicines = filterByMemberId(await runtime.listMedicines(ctx), effectiveMemberId)
+    const scopedMembers = filterMembersById(members, effectiveMemberId)
+    const selection = await runtime.selectMedicines(normalizedQuestion, medicines, scopedMembers)
     const selectedIdSet = new Set(selection.selectedIds)
     const selectedMedicines = medicines.filter((medicine) => selectedIdSet.has(medicine.id))
 
@@ -492,7 +500,7 @@ export async function resolveAssistantQuery(
       label: `药品 · ${medicine.name}`,
       detail: buildSourceDetail(
         medicine.category,
-        `${members.find((item) => item.id === medicine.memberId)?.name ?? "未知成员"} · ${medicine.purpose} · ${medicine.instructions}`,
+        `${scopedMembers.find((item) => item.id === medicine.memberId)?.name ?? "未知成员"} · ${medicine.purpose} · ${medicine.instructions}`,
       ),
     }))
 
@@ -521,11 +529,9 @@ export async function resolveAssistantQuery(
   }
 
   if (classification.intent === "allergy_query") {
-    const [members, allergyRecords] = await Promise.all([
-      runtime.listMembers(ctx),
-      runtime.listAllergyRecords(ctx),
-    ])
-    const matches = buildAllergyMatches(allergyRecords, members)
+    const allergyRecords = filterByMemberId(await runtime.listAllergyRecords(ctx), effectiveMemberId)
+    const scopedMembers = filterMembersById(members, effectiveMemberId)
+    const matches = buildAllergyMatches(allergyRecords, scopedMembers)
 
     if (matches.length === 0) {
       return {
@@ -566,13 +572,9 @@ export async function resolveAssistantQuery(
   }
 
   if (classification.intent === "visit_prep_query") {
-    const [members, records, medicines, allergyRecords] = await Promise.all([
-      runtime.listMembers(ctx),
-      runtime.listMedicalRecords(ctx),
-      runtime.listMedicines(ctx),
-      runtime.listAllergyRecords(ctx),
-    ])
-    const sources = buildVisitPrepSources(members, records, medicines, allergyRecords)
+    const [records, medicines, allergyRecords] = await Promise.all([runtime.listMedicalRecords(ctx), runtime.listMedicines(ctx), runtime.listAllergyRecords(ctx)])
+    const scopedMembers = filterMembersById(members, effectiveMemberId)
+    const sources = buildVisitPrepSources(scopedMembers, filterByMemberId(records, effectiveMemberId), filterByMemberId(medicines, effectiveMemberId), filterByMemberId(allergyRecords, effectiveMemberId))
 
     if (sources.length === 0) {
       return {
