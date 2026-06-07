@@ -14,23 +14,68 @@ export const DEFAULT_DEVELOPMENT_USER: CurrentUser = {
   email: "dev@medicine-vault.local",
 }
 
+type AuthSession = Readonly<{
+  user?: Readonly<{
+    id?: string
+    name?: string | null
+    email?: string | null
+  }>
+}> | null
+
+type SessionReader = () => Promise<AuthSession>
+
+let sessionReaderOverride: SessionReader | null = null
+
+export function __setSessionReaderForTests(reader: SessionReader | null) {
+  sessionReaderOverride = reader
+}
+
 function isProduction() {
   return process.env.NODE_ENV === "production"
 }
 
-export async function getCurrentUser(): Promise<CurrentUser | null> {
-  if (isProduction()) {
+async function readAuthSession(): Promise<AuthSession> {
+  if (sessionReaderOverride) {
+    return sessionReaderOverride()
+  }
+
+  const { auth } = await import("@/auth")
+  return auth()
+}
+
+function mapSessionUser(session: AuthSession): CurrentUser | null {
+  const userId = session?.user?.id
+
+  if (!userId) {
     return null
   }
 
-  return DEFAULT_DEVELOPMENT_USER
+  return {
+    id: userId,
+    name: session.user?.name?.trim() || "用户",
+    email: session.user?.email ?? undefined,
+  }
+}
+
+export async function getCurrentUser(): Promise<CurrentUser | null> {
+  const sessionUser = mapSessionUser(await readAuthSession())
+
+  if (sessionUser) {
+    return sessionUser
+  }
+
+  if (!isProduction()) {
+    return DEFAULT_DEVELOPMENT_USER
+  }
+
+  return null
 }
 
 export async function requireCurrentUser(): Promise<RepositoryContext> {
   const user = await getCurrentUser()
 
   if (!user) {
-    throw new Error("生产环境缺少真实登录会话，已拒绝访问家庭健康资料。请先接入 Auth.js session。")
+    throw new Error("未登录，无法访问家庭健康资料。请先登录。")
   }
 
   return { userId: user.id }

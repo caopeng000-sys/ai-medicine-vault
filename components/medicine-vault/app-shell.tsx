@@ -43,7 +43,10 @@ const utilityNavigation = [
   { href: "/assistant", label: "系统设置", icon: SettingsIcon },
 ]
 
-export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
+export function AppShell({
+  children,
+  accountMenu,
+}: Readonly<{ children: ReactNode; accountMenu?: ReactNode }>) {
   const pathname = usePathname()
 
   return (
@@ -160,15 +163,19 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
                   </Button>
                 </div>
 
-                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-                  <span className="flex size-10 items-center justify-center rounded-full bg-gradient-to-br from-slate-900 to-slate-700 text-sm font-semibold text-white">
-                    CP
-                  </span>
-                  <div className="hidden sm:block">
-                    <p className="text-sm font-medium text-slate-900">曹鹏</p>
-                    <p className="text-xs text-slate-500">产品原型负责人</p>
-                  </div>
-                  <ChevronDownIcon className="size-4 text-slate-400" aria-hidden="true" />
+                <div className="flex items-center gap-3">
+                  {accountMenu ?? (
+                    <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                      <span className="flex size-10 items-center justify-center rounded-full bg-gradient-to-br from-slate-900 to-slate-700 text-sm font-semibold text-white">
+                        CP
+                      </span>
+                      <div className="hidden sm:block">
+                        <p className="text-sm font-medium text-slate-900">曹鹏</p>
+                        <p className="text-xs text-slate-500">产品原型负责人</p>
+                      </div>
+                      <ChevronDownIcon className="size-4 text-slate-400" aria-hidden="true" />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
