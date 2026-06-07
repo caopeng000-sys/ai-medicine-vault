@@ -78,6 +78,8 @@ DATABASE_URL="postgresql://..." npm run prisma:deploy
 - [ ] 成员 / 药品 / 病历数据正常（owner 隔离）
 - [ ] 上传药品图片（S3 或 DB 回退）
 - [ ] 助手查询与图片识别可用
+- [ ] `GET /api/health` 返回 `status: "ok"`
+- [ ] 部署前本地执行 `npm run check:env` 通过
 - [ ] Sentry 收到测试错误（可选：`/api/debug/sentry` 仅 development）
 
 ## 7. 与 CI 的关系
