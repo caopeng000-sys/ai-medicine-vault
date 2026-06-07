@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 
+import { withAiCallLogging } from "@/features/medicine-vault/ai-call-logger"
+import { toApiErrorResponse } from "@/features/medicine-vault/api-errors"
 import { requireCurrentUser } from "@/features/medicine-vault/auth-context"
 import { generateMemberHealthSummary } from "@/features/medicine-vault/member-health-summary-service"
 
@@ -10,14 +12,19 @@ export async function POST(
   try {
     const ctx = await requireCurrentUser()
     const { memberId } = await context.params
-    const summary = await generateMemberHealthSummary(ctx, memberId)
+    const summary = await withAiCallLogging(
+      {
+        userId: ctx.userId,
+        route: "/api/members/[memberId]/health-summary",
+      },
+      async () => generateMemberHealthSummary(ctx, memberId),
+    )
 
     return NextResponse.json({
       message: "成员健康摘要已生成。",
       data: summary,
     })
   } catch (error) {
-    const message = error instanceof Error ? error.message : "生成成员健康摘要失败。"
-    return NextResponse.json({ message }, { status: 400 })
+    return toApiErrorResponse(error, "生成成员健康摘要失败。")
   }
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { NotFoundError, toApiErrorResponse } from "@/features/medicine-vault/api-errors"
 import { requireCurrentUser } from "@/features/medicine-vault/auth-context"
 import { deleteMember, getMemberById, updateMember } from "@/features/medicine-vault/repository"
 import { updateMemberSchema } from "@/features/medicine-vault/schemas"
@@ -14,7 +15,7 @@ export async function PATCH(
     const existingMember = await getMemberById(ctx, memberId)
 
     if (!existingMember) {
-      return NextResponse.json({ message: "成员不存在。" }, { status: 404 })
+      throw new NotFoundError("成员不存在。")
     }
 
     const input = updateMemberSchema.parse(await request.json())
@@ -25,8 +26,7 @@ export async function PATCH(
       data: member,
     })
   } catch (error) {
-    const message = error instanceof Error ? error.message : "更新成员失败。"
-    return NextResponse.json({ message }, { status: 400 })
+    return toApiErrorResponse(error, "更新成员失败。")
   }
 }
 
@@ -40,7 +40,7 @@ export async function DELETE(
     const existingMember = await getMemberById(ctx, memberId)
 
     if (!existingMember) {
-      return NextResponse.json({ message: "成员不存在。" }, { status: 404 })
+      throw new NotFoundError("成员不存在。")
     }
 
     const member = await deleteMember(ctx, memberId)
@@ -50,7 +50,6 @@ export async function DELETE(
       data: member,
     })
   } catch (error) {
-    const message = error instanceof Error ? error.message : "删除成员失败。"
-    return NextResponse.json({ message }, { status: 400 })
+    return toApiErrorResponse(error, "删除成员失败。")
   }
 }

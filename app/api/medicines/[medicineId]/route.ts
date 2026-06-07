@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { NotFoundError, toApiErrorResponse } from "@/features/medicine-vault/api-errors"
 import { requireCurrentUser } from "@/features/medicine-vault/auth-context"
 import { deleteMedicine, getMedicineById, updateMedicine } from "@/features/medicine-vault/repository"
 import { parseMedicineSubmission } from "@/features/medicine-vault/medicine-request"
@@ -14,7 +15,7 @@ export async function PATCH(
     const existingMedicine = await getMedicineById(ctx, medicineId)
 
     if (!existingMedicine) {
-      return NextResponse.json({ message: "药品记录不存在。" }, { status: 404 })
+      throw new NotFoundError("药品记录不存在。")
     }
 
     const { input, image } = await parseMedicineSubmission(request)
@@ -25,8 +26,7 @@ export async function PATCH(
       data: medicine,
     })
   } catch (error) {
-    const message = error instanceof Error ? error.message : "更新药品记录失败。"
-    return NextResponse.json({ message }, { status: 400 })
+    return toApiErrorResponse(error, "更新药品记录失败。")
   }
 }
 
@@ -40,7 +40,7 @@ export async function DELETE(
     const existingMedicine = await getMedicineById(ctx, medicineId)
 
     if (!existingMedicine) {
-      return NextResponse.json({ message: "药品记录不存在。" }, { status: 404 })
+      throw new NotFoundError("药品记录不存在。")
     }
 
     const medicine = await deleteMedicine(ctx, medicineId)
@@ -50,7 +50,6 @@ export async function DELETE(
       data: medicine,
     })
   } catch (error) {
-    const message = error instanceof Error ? error.message : "删除药品记录失败。"
-    return NextResponse.json({ message }, { status: 400 })
+    return toApiErrorResponse(error, "删除药品记录失败。")
   }
 }

@@ -1,3 +1,5 @@
+import { UnauthorizedError } from "./api-errors"
+
 export type RepositoryContext = Readonly<{
   userId: string
 }>
@@ -75,7 +77,7 @@ export async function requireCurrentUser(): Promise<RepositoryContext> {
   const user = await getCurrentUser()
 
   if (!user) {
-    throw new Error("未登录，无法访问家庭健康资料。请先登录。")
+    throw new UnauthorizedError()
   }
 
   return { userId: user.id }

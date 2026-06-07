@@ -1,14 +1,11 @@
 import { NextResponse } from "next/server"
 
+import { withAiCallLogging } from "@/features/medicine-vault/ai-call-logger"
+import { toApiErrorResponse } from "@/features/medicine-vault/api-errors"
 import { requireCurrentUser } from "@/features/medicine-vault/auth-context"
 import { extractMedicalRecordFromImage } from "@/features/medicine-vault/medical-record-extractor"
 import { aiImageExtractRateLimiter, rateLimitResponse } from "@/features/medicine-vault/rate-limiter"
-
-const MAX_FILE_SIZE = 8 * 1024 * 1024
-
-function isImageFile(file: File) {
-  return file.type.startsWith("image/")
-}
+import { assertValidImageUpload } from "@/features/medicine-vault/upload-validation"
 
 function toDataUrl(file: File, buffer: Buffer) {
   const mimeType = file.type || "image/jpeg"
@@ -31,23 +28,22 @@ export async function POST(request: Request) {
       throw new Error("请先上传病历图片。")
     }
 
-    if (!isImageFile(file)) {
-      throw new Error("当前只支持上传图片文件。")
-    }
-
-    if (file.size > MAX_FILE_SIZE) {
-      throw new Error("图片不能超过 8MB。")
-    }
+    assertValidImageUpload(file)
 
     const buffer = Buffer.from(await file.arrayBuffer())
-    const extracted = await extractMedicalRecordFromImage(toDataUrl(file, buffer))
+    const extracted = await withAiCallLogging(
+      {
+        userId: ctx.userId,
+        route: "/api/records/extract",
+      },
+      async () => extractMedicalRecordFromImage(toDataUrl(file, buffer)),
+    )
 
     return NextResponse.json({
       message: "病历图片识别完成。",
       data: extracted,
     })
   } catch (error) {
-    const message = error instanceof Error ? error.message : "病历图片识别失败。"
-    return NextResponse.json({ message }, { status: 400 })
+    return toApiErrorResponse(error, "病历图片识别失败。")
   }
 }

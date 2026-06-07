@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { afterEach, describe, it } from "node:test"
 
+import { UnauthorizedError } from "@/features/medicine-vault/api-errors"
 import {
   DEFAULT_DEVELOPMENT_USER,
   __setSessionReaderForTests,
@@ -52,7 +53,7 @@ describe("auth context", () => {
     assert.equal(await getCurrentUser(), null)
     await assert.rejects(
       requireCurrentUser(),
-      /未登录/,
+      (error: unknown) => error instanceof UnauthorizedError,
     )
   })
 

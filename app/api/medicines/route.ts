@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { toApiErrorResponse } from "@/features/medicine-vault/api-errors"
 import { requireCurrentUser } from "@/features/medicine-vault/auth-context"
 import { createMedicine } from "@/features/medicine-vault/repository"
 import { parseMedicineSubmission } from "@/features/medicine-vault/medicine-request"
@@ -15,7 +16,6 @@ export async function POST(request: Request) {
       data: medicine,
     })
   } catch (error) {
-    const message = error instanceof Error ? error.message : "创建药品记录失败。"
-    return NextResponse.json({ message }, { status: 400 })
+    return toApiErrorResponse(error, "创建药品记录失败。")
   }
 }
