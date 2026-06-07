@@ -54,6 +54,7 @@ export type AllergyRecord = {
 }
 
 export type VisitPreparation = {
+  id?: string
   userId: string
   memberId: string
   concern: string

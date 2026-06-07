@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useMemo, useState } from "react"
 import {
   ArrowUpRightIcon,
@@ -99,9 +100,11 @@ export function AssistantPanel() {
               </p>
             </div>
 
-            <Button className="rounded-2xl bg-violet-500 px-4 text-white shadow-sm hover:bg-violet-600" type="button">
-              <SparklesIcon aria-hidden="true" data-icon="inline-start" />
-              生成就医摘要
+            <Button asChild className="rounded-2xl bg-violet-500 px-4 text-white shadow-sm hover:bg-violet-600">
+              <Link href="/visit-prep">
+                <SparklesIcon aria-hidden="true" data-icon="inline-start" />
+                生成就医摘要
+              </Link>
             </Button>
           </div>
 

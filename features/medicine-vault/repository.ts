@@ -167,6 +167,7 @@ function mapAllergyRecord(record: {
 }
 
 function mapVisitPreparation(item: {
+  id?: string
   userId: string
   memberId: string
   concern: string
@@ -174,6 +175,7 @@ function mapVisitPreparation(item: {
   questions: string[]
 }): VisitPreparation {
   return {
+    id: item.id,
     userId: item.userId,
     memberId: item.memberId,
     concern: item.concern,
@@ -507,6 +509,62 @@ export async function listVisitPreparations(ctx: RepositoryContext, memberId?: s
     return mockVisitPreparations
       .filter((item) => item.userId === ctx.userId)
       .filter((item) => (memberId ? item.memberId === memberId : true))
+  }
+}
+
+export async function createVisitPreparation(
+  ctx: RepositoryContext,
+  input: Readonly<{
+    memberId: string
+    concern: string
+    summary: string
+    questions: string[]
+  }>,
+) {
+  const prisma = getPrismaClient()
+
+  if (!prisma) {
+    assertMockMemberBelongsToUser(ctx, input.memberId)
+
+    const preparation: VisitPreparation = {
+      userId: ctx.userId,
+      memberId: input.memberId,
+      concern: input.concern,
+      summary: input.summary,
+      questions: input.questions,
+    }
+
+    mockVisitPreparations.unshift(preparation)
+    return preparation
+  }
+
+  try {
+    await assertDatabaseMemberBelongsToUser(ctx, input.memberId)
+
+    const item = await prisma.visitPreparation.create({
+      data: {
+        userId: ctx.userId,
+        memberId: input.memberId,
+        concern: input.concern,
+        summary: input.summary,
+        questions: input.questions,
+      },
+    })
+
+    return mapVisitPreparation(item)
+  } catch {
+    assertMockMemberBelongsToUser(ctx, input.memberId)
+
+    const preparation: VisitPreparation = {
+      userId: ctx.userId,
+      memberId: input.memberId,
+      concern: input.concern,
+      summary: input.summary,
+      questions: input.questions,
+    }
+
+    mockVisitPreparations.unshift(preparation)
+    return preparation
   }
 }
 
