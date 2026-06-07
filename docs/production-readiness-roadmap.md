@@ -113,9 +113,17 @@ P2 可以作为产品成熟度提升项，不阻塞第一版上线。
 
 将药品图片从数据库二进制存储迁移到对象存储，数据库只保存图片元数据和访问地址。
 
+**当前进展**
+
+- 新增 S3 兼容对象存储层（`lib/storage/object-storage.ts`）
+- 配置 `S3_*` 环境变量后，新上传图片写入对象存储并保存 `imageKey`
+- 未配置 S3 时继续回退到 PostgreSQL `imageBytes`
+- 提供 `npm run migrate:medicine-images` 迁移历史图片
+- 详见 [object-storage-setup.md](./object-storage-setup.md)
+
 **当前问题**
 
-当前图片保存在 PostgreSQL 字节字段中，小规模可用，但长期会增加数据库体积、备份成本和查询压力。
+生产环境需选定并配置托管对象存储；历史 `imageBytes` 需在上线前批量迁移。
 
 **开发任务**
 
@@ -224,6 +232,11 @@ P2 可以作为产品成熟度提升项，不阻塞第一版上线。
 **目标**
 
 让构建、测试、部署变成可重复流程。
+
+**当前进展**
+
+- 新增 GitHub Actions CI：`.github/workflows/ci.yml`
+- PR 与 main 推送时自动 `prisma generate`、`npm run build`、核心单元测试
 
 **开发任务**
 

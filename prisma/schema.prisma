@@ -147,6 +147,7 @@ model Medicine {
   usageNote       String
   safetyNote      String
   imageBytes      Bytes?
+  imageKey        String?
   imageMimeType   String?
   imageName       String?
   createdAt       DateTime @default(now())

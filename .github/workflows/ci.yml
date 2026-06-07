@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Build
+        run: npm run build
+        env:
+          AUTH_SECRET: ci-test-auth-secret
+          NEXT_TELEMETRY_DISABLED: "1"
+
+      - name: Run unit tests
+        run: |
+          npm exec --yes tsx --test \
+            features/medicine-vault/api-errors.test.ts \
+            features/medicine-vault/auth-context.test.ts \
+            features/medicine-vault/rate-limiter.test.ts \
+            features/medicine-vault/assistant-routing.test.ts \
+            features/medicine-vault/medicine-pagination.test.ts \
+            app/api/assistant/query/route.test.ts \
+            lib/storage/object-storage.test.ts
