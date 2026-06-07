@@ -92,6 +92,21 @@ export const medicineExtractionFieldNames = Object.keys(
   extractedMedicineSchema.shape
 ) as Array<keyof typeof extractedMedicineSchema.shape>
 
+export const extractedMedicalRecordSchema = z.object({
+  visitedAt: z.string().trim().default(""),
+  hospital: z.string().trim().default(""),
+  diagnosis: z.string().trim().default(""),
+  symptoms: z.string().trim().default(""),
+  advice: z.string().trim().default(""),
+  summary: z.string().trim().default(""),
+  warnings: z.array(z.string().trim()).default([]),
+  originalText: z.string().trim().default(""),
+})
+
+export const medicalRecordExtractionFieldNames = Object.keys(
+  extractedMedicalRecordSchema.shape
+) as Array<keyof typeof extractedMedicalRecordSchema.shape>
+
 export type CreateMemberInput = z.infer<typeof createMemberSchema>
 export type UpdateMemberInput = z.infer<typeof updateMemberSchema>
 export type CreateMedicalRecordInput = z.infer<typeof createMedicalRecordSchema>
@@ -102,3 +117,4 @@ export type VaultSearchInput = z.infer<typeof vaultSearchSchema>
 export type VisitPreparationGenerated = z.infer<typeof visitPreparationGeneratedSchema>
 export type MemberHealthSummaryGenerated = z.infer<typeof memberHealthSummarySchema>
 export type ExtractedMedicineData = z.infer<typeof extractedMedicineSchema>
+export type ExtractedMedicalRecordData = z.infer<typeof extractedMedicalRecordSchema>
