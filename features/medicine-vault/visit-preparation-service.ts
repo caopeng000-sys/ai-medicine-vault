@@ -1,5 +1,6 @@
 import { createDashscopeChatCompletion } from "@/lib/ai/dashscope"
 
+import { guardAiText, HIGH_RISK_QUESTION_TEMPLATE, isHighRiskQuestion } from "./ai-safety-guardrail"
 import type { RepositoryContext } from "./auth-context"
 import type { AllergyRecord, MedicalRecord, Medicine, Member, VisitPreparation } from "./data"
 import {
@@ -224,6 +225,15 @@ export async function generateVisitPreparation(
     throw new Error("成员不存在或不属于当前用户。")
   }
 
+  if (isHighRiskQuestion(input.concern)) {
+    return runtime.createVisitPreparation(ctx, {
+      memberId: input.memberId,
+      concern: input.concern,
+      summary: HIGH_RISK_QUESTION_TEMPLATE,
+      questions: [HIGH_RISK_QUESTION_TEMPLATE],
+    })
+  }
+
   const [records, medicines, allergies] = await Promise.all([
     runtime.listMedicalRecords(ctx, input.memberId),
     runtime.listMedicines(ctx, input.memberId),
@@ -241,7 +251,7 @@ export async function generateVisitPreparation(
   return runtime.createVisitPreparation(ctx, {
     memberId: input.memberId,
     concern: draft.concern,
-    summary: draft.summary,
-    questions: draft.questions,
+    summary: guardAiText(draft.summary),
+    questions: draft.questions.map((question) => guardAiText(question)),
   })
 }

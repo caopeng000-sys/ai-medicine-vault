@@ -1,5 +1,6 @@
 import { createDashscopeChatCompletion } from "@/lib/ai/dashscope"
 
+import { guardAiText } from "./ai-safety-guardrail"
 import type { AssistantSource } from "./assistant-service"
 import type { RepositoryContext } from "./auth-context"
 import type { AllergyRecord, MedicalRecord, Medicine, Member } from "./data"
@@ -267,7 +268,11 @@ export async function generateMemberHealthSummary(
   })
 
   return {
-    ...summary,
+    chronicTimeline: summary.chronicTimeline.map((item) => guardAiText(item)),
+    medicationSummary: guardAiText(summary.medicationSummary),
+    allergyRisks: guardAiText(summary.allergyRisks),
+    lastVisitHighlight: guardAiText(summary.lastVisitHighlight),
+    doctorBrief: guardAiText(summary.doctorBrief),
     sources: buildSources(records, medicines, allergies),
   }
 }

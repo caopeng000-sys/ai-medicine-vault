@@ -3,6 +3,7 @@ import { describe, it } from "node:test"
 
 import { allergyRecords, medicalRecords, medicines, members } from "./data"
 import { DEFAULT_DEVELOPMENT_USER, type RepositoryContext } from "./auth-context"
+import { HIGH_RISK_QUESTION_TEMPLATE } from "./ai-safety-guardrail"
 import { resolveAssistantQuery } from "./assistant-service"
 
 describe("assistant service", () => {
@@ -131,6 +132,44 @@ describe("assistant service", () => {
     assert.equal(result.answer, "allergy_query:2")
     assert.ok(result.sources.some((source) => source.label.includes("青霉素")))
     assert.ok(result.sources.some((source) => source.label.includes("海鲜")))
+  })
+
+  it("returns a fixed template for high-risk medication questions", async () => {
+    const result = await resolveAssistantQuery(ctx, "咳嗽应该吃什么药？", {
+      classifyQuestion: async () => ({
+        intent: "medicine_query",
+        reason: "不应被调用",
+      }),
+      selectMedicines: async () => ({ selectedIds: [], summary: "", reason: "" }),
+      summarizeAnswer: async () => "不应被调用",
+      listMembers: async () => members,
+      listMedicalRecords: async () => medicalRecords,
+      listMedicines: async () => medicines,
+      listAllergyRecords: async () => allergyRecords,
+    })
+
+    assert.equal(result.intent, "unsupported")
+    assert.equal(result.answer, HIGH_RISK_QUESTION_TEMPLATE)
+    assert.equal(result.message, HIGH_RISK_QUESTION_TEMPLATE)
+    assert.deepEqual(result.sources, [])
+  })
+
+  it("sanitizes AI answers that contain diagnosis phrasing", async () => {
+    const result = await resolveAssistantQuery(ctx, "我上次什么时候感冒", {
+      classifyQuestion: async () => ({
+        intent: "recent_cold_record",
+        reason: "命中感冒问题",
+      }),
+      selectMedicines: async () => ({ selectedIds: [], summary: "", reason: "" }),
+      summarizeAnswer: async () => "根据记录，初步诊断为普通感冒。",
+      listMembers: async () => members,
+      listMedicalRecords: async () => medicalRecords,
+      listMedicines: async () => medicines,
+      listAllergyRecords: async () => allergyRecords,
+    })
+
+    assert.ok(result.answer.includes("请咨询医生或药师确认后再做决定。"))
+    assert.equal(result.answer.includes("初步诊断为"), false)
   })
 
   it("returns visit prep questions with multi-source context", async () => {

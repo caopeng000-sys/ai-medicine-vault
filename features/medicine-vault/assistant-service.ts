@@ -4,6 +4,11 @@ import { createDashscopeChatCompletion } from "@/lib/ai/dashscope"
 import type { RepositoryContext } from "./auth-context"
 import { listAllergyRecords, listMedicalRecords, listMedicines, listMembers } from "./repository"
 import {
+  applyAiSafetyGuardrail,
+  HIGH_RISK_QUESTION_TEMPLATE,
+  isHighRiskQuestion,
+} from "./ai-safety-guardrail"
+import {
   buildAllergyMatches,
   buildVisitPrepSources,
   detectAssistantIntent,
@@ -62,6 +67,10 @@ type AssistantDependencies = Readonly<{
 const UNSUPPORTED_MESSAGE =
   "这类问题我现在还不支持。你可以问我上次什么时候感冒、家里有哪些抗过敏药、之前对哪些药有过不适，或者下次看医生前应该准备哪些问题。"
 const NO_RESULT_MESSAGE = "我找到了这个问题对应的方向，但暂时没有查到可用记录。"
+
+function guardAssistantAnswer(answer: string) {
+  return applyAiSafetyGuardrail(answer).text
+}
 
 function buildSourceDetail(title: string, detail: string) {
   return `${title} · ${detail}`
@@ -383,6 +392,15 @@ export async function resolveAssistantQuery(
     }
   }
 
+  if (isHighRiskQuestion(normalizedQuestion)) {
+    return {
+      intent: "unsupported",
+      answer: HIGH_RISK_QUESTION_TEMPLATE,
+      message: HIGH_RISK_QUESTION_TEMPLATE,
+      sources: [],
+    }
+  }
+
   const classification = await runtime.classifyQuestion(normalizedQuestion)
 
   if (classification.intent === "unsupported") {
@@ -401,7 +419,7 @@ export async function resolveAssistantQuery(
     if (!match) {
       return {
         intent: classification.intent,
-        answer: NO_RESULT_MESSAGE,
+        answer: guardAssistantAnswer(NO_RESULT_MESSAGE),
         sources: [],
       }
     }
@@ -423,13 +441,13 @@ export async function resolveAssistantQuery(
 
       return {
         intent: classification.intent,
-        answer: answer || fallbackAnswer(classification.intent, sources),
+        answer: guardAssistantAnswer(answer || fallbackAnswer(classification.intent, sources)),
         sources,
       }
     } catch {
       return {
         intent: classification.intent,
-        answer: fallbackAnswer(classification.intent, sources),
+        answer: guardAssistantAnswer(fallbackAnswer(classification.intent, sources)),
         sources,
       }
     }
@@ -444,7 +462,7 @@ export async function resolveAssistantQuery(
     if (selectedMedicines.length === 0) {
       return {
         intent: classification.intent,
-        answer: selection.summary || NO_RESULT_MESSAGE,
+        answer: guardAssistantAnswer(selection.summary || NO_RESULT_MESSAGE),
         sources: [],
       }
     }
@@ -467,13 +485,15 @@ export async function resolveAssistantQuery(
 
       return {
         intent: classification.intent,
-        answer: answer || selection.summary || fallbackAnswer(classification.intent, sources),
+        answer: guardAssistantAnswer(
+          answer || selection.summary || fallbackAnswer(classification.intent, sources),
+        ),
         sources,
       }
     } catch {
       return {
         intent: classification.intent,
-        answer: selection.summary || fallbackAnswer(classification.intent, sources),
+        answer: guardAssistantAnswer(selection.summary || fallbackAnswer(classification.intent, sources)),
         sources,
       }
     }
@@ -489,7 +509,7 @@ export async function resolveAssistantQuery(
     if (matches.length === 0) {
       return {
         intent: classification.intent,
-        answer: NO_RESULT_MESSAGE,
+        answer: guardAssistantAnswer(NO_RESULT_MESSAGE),
         sources: [],
       }
     }
@@ -512,13 +532,13 @@ export async function resolveAssistantQuery(
 
       return {
         intent: classification.intent,
-        answer: answer || fallbackAnswer(classification.intent, sources),
+        answer: guardAssistantAnswer(answer || fallbackAnswer(classification.intent, sources)),
         sources,
       }
     } catch {
       return {
         intent: classification.intent,
-        answer: fallbackAnswer(classification.intent, sources),
+        answer: guardAssistantAnswer(fallbackAnswer(classification.intent, sources)),
         sources,
       }
     }
@@ -536,7 +556,7 @@ export async function resolveAssistantQuery(
     if (sources.length === 0) {
       return {
         intent: classification.intent,
-        answer: NO_RESULT_MESSAGE,
+        answer: guardAssistantAnswer(NO_RESULT_MESSAGE),
         sources: [],
       }
     }
@@ -550,13 +570,13 @@ export async function resolveAssistantQuery(
 
       return {
         intent: classification.intent,
-        answer: answer || fallbackVisitPrepAnswer(sources),
+        answer: guardAssistantAnswer(answer || fallbackVisitPrepAnswer(sources)),
         sources,
       }
     } catch {
       return {
         intent: classification.intent,
-        answer: fallbackVisitPrepAnswer(sources),
+        answer: guardAssistantAnswer(fallbackVisitPrepAnswer(sources)),
         sources,
       }
     }
