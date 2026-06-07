@@ -1,8 +1,8 @@
-import { ClipboardListIcon, FileTextIcon, PillIcon, ShieldAlertIcon, ShieldCheckIcon, SparklesIcon } from "lucide-react"
+import { ClipboardListIcon, FileTextIcon, PillIcon, ShieldAlertIcon, ShieldCheckIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { VisitPrepToolbar } from "@/components/medicine-vault/visit-prep-toolbar"
 import { requireCurrentUser } from "@/features/medicine-vault/auth-context"
 import {
   listAllergyRecords,
@@ -33,23 +33,24 @@ export default async function VisitPreparationPage() {
     <div className="grid gap-6">
       <section className="rounded-[32px] border border-white/70 bg-white/80 p-5 shadow-[0_20px_90px_rgba(15,23,42,0.08)] backdrop-blur md:p-7">
         <div className="flex flex-col gap-4 border-b border-slate-100 pb-6">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex flex-col gap-3">
             <div className="grid gap-2">
               <div className="flex flex-wrap items-center gap-3">
                 <h1 className="text-3xl font-semibold tracking-normal text-slate-950">就医准备清单</h1>
                 <Badge className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-600 hover:bg-emerald-50">
-                  模拟生成
+                  AI 生成
                 </Badge>
               </div>
               <p className="max-w-3xl text-sm leading-6 text-slate-500">
-                把病历、近期用药和过敏信息整理成就医前可读清单。当前版本为 mock 数据生成。
+                把病历、近期用药和过敏信息整理成就医前可读清单。生成结果会保存，便于复诊前反复查看。
               </p>
             </div>
 
-            <Button className="rounded-2xl bg-emerald-500 px-4 text-white shadow-sm hover:bg-emerald-600">
-              <SparklesIcon data-icon="inline-start" />
-              重新生成摘要
-            </Button>
+            <VisitPrepToolbar
+              defaultConcern={preparation?.concern ?? "咳嗽低烧复诊前准备"}
+              defaultMemberId={member?.id ?? members[0]?.id ?? ""}
+              members={members}
+            />
           </div>
 
           <div className="grid gap-3 lg:grid-cols-3">
@@ -116,15 +117,15 @@ export default async function VisitPreparationPage() {
               <div>
                 <p className="inline-flex items-center gap-2 text-sm font-medium text-emerald-600">
                   <ClipboardListIcon className="size-4" aria-hidden="true" />
-                  模拟生成
+                  就医准备
                 </p>
                 <p className="mt-2 text-2xl font-semibold text-slate-950">{preparation?.concern ?? "尚未生成就医准备清单"}</p>
               </div>
 
               <section className="rounded-[22px] border border-slate-100 bg-slate-50/70 p-4">
                 <p className="font-medium text-slate-700">摘要</p>
-                <p className="mt-3 text-slate-600">
-                  {preparation?.summary ?? "接入真实数据后，这里会生成基于病历、药品和过敏信息的就医前摘要。"}
+                <p className="mt-3 whitespace-pre-line text-slate-600">
+                  {preparation?.summary ?? "选择成员并描述就医场景后，点击「重新生成摘要」即可生成清单。"}
                 </p>
               </section>
 

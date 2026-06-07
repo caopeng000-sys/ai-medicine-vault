@@ -11,7 +11,6 @@ import {
   LayoutDashboardIcon,
   LineChartIcon,
   PillIcon,
-  SearchIcon,
   SettingsIcon,
   ShieldAlertIcon,
   SparklesIcon,
@@ -23,7 +22,7 @@ import type { ReactNode } from "react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { GlobalSearch } from "@/components/medicine-vault/global-search"
 import { cn } from "@/lib/utils"
 
 const primaryNavigation = [
@@ -149,13 +148,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
         <div className="min-w-0">
           <header className="sticky top-0 z-20 border-b border-white/70 bg-white/76 px-5 py-4 backdrop-blur md:px-8 lg:px-10">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                <SearchIcon className="size-4 text-slate-400" aria-hidden="true" />
-                <Input
-                  className="border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
-                  placeholder="搜索药品、病历、成员或就医问题..."
-                />
-              </div>
+              <GlobalSearch />
 
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">

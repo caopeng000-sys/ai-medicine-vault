@@ -5,6 +5,7 @@ import type { RepositoryContext } from "./auth-context"
 import { listAllergyRecords, listMedicalRecords, listMedicines, listMembers } from "./repository"
 import {
   buildAllergyMatches,
+  buildVisitPrepSources,
   detectAssistantIntent,
   findRecentColdRecord,
   parseAssistantIntent,
@@ -47,6 +48,11 @@ type AssistantDependencies = Readonly<{
     sources: AssistantSource[]
     context: string
   }) => Promise<string>
+  summarizeVisitPrep: (input: {
+    question: string
+    sources: AssistantSource[]
+    context: string
+  }) => Promise<string>
   listMembers: (ctx: RepositoryContext) => Promise<Member[]>
   listMedicalRecords: (ctx: RepositoryContext) => Promise<MedicalRecord[]>
   listMedicines: (ctx: RepositoryContext) => Promise<Medicine[]>
@@ -54,7 +60,7 @@ type AssistantDependencies = Readonly<{
 }>
 
 const UNSUPPORTED_MESSAGE =
-  "这类问题我现在还不支持。你可以问我上次什么时候感冒、家里有哪些抗过敏药，或者之前对哪些药有过不适。"
+  "这类问题我现在还不支持。你可以问我上次什么时候感冒、家里有哪些抗过敏药、之前对哪些药有过不适，或者下次看医生前应该准备哪些问题。"
 const NO_RESULT_MESSAGE = "我找到了这个问题对应的方向，但暂时没有查到可用记录。"
 
 function buildSourceDetail(title: string, detail: string) {
@@ -106,7 +112,37 @@ function fallbackAnswer(intent: AssistantIntent, sources: AssistantSource[]) {
     return `目前记录到的过敏/不适包括：${sources.map((item) => item.label).join("、")}。`
   }
 
+  if (intent === "visit_prep_query") {
+    if (sources.length === 0) return NO_RESULT_MESSAGE
+    return fallbackVisitPrepAnswer(sources)
+  }
+
   return NO_RESULT_MESSAGE
+}
+
+function fallbackVisitPrepAnswer(sources: AssistantSource[]) {
+  const questions: string[] = []
+
+  if (sources.some((source) => source.label.startsWith("病历"))) {
+    questions.push("近期相关症状是否需要进一步检查或复查？")
+  }
+
+  if (sources.some((source) => source.label.startsWith("药品"))) {
+    questions.push("目前在用的常备药是否需要调整或继续按说明使用？")
+  }
+
+  if (sources.some((source) => source.label.startsWith("过敏"))) {
+    questions.push("已有过敏/不适记录是否会影响本次用药或检查选择？")
+  }
+
+  if (questions.length === 0) {
+    questions.push("本次就诊主要想解决什么问题？")
+    questions.push("需要携带哪些既往检查或用药资料？")
+  }
+
+  questions.push("如果出现哪些情况需要尽快复诊？")
+
+  return `建议就医前向医生咨询以下问题：\n${questions.map((question, index) => `${index + 1}. ${question}`).join("\n")}`
 }
 
 function fallbackSelectMedicines(question: string, medicines: Medicine[]) {
@@ -176,10 +212,11 @@ async function defaultClassifyQuestion(question: string): Promise<AssistantClass
           content: [
             "你是一个家庭健康资料助手的意图识别器。",
             "只允许返回 JSON。",
-            "可选 intent 只有四个：recent_cold_record, medicine_query, allergy_query, unsupported。",
+            "可选 intent 只有五个：recent_cold_record, medicine_query, allergy_query, visit_prep_query, unsupported。",
             '如果问题在问“上次什么时候感冒 / 上次感冒 / 最近感冒记录”，返回 recent_cold_record。',
             '如果问题在问任何家庭药品相关问题，例如“家里有哪些抗咳嗽药 / 抗过敏药 / 退烧药 / 感冒药 / 止痛药”，返回 medicine_query。',
             '如果问题在问过敏史、药物不良反应或“对哪些药有过不适”，返回 allergy_query。',
+            '如果问题在问就医前准备、看医生前要问什么、就诊前应该准备哪些问题，返回 visit_prep_query。',
             "其他问题返回 unsupported。",
             '返回格式示例：{"intent":"recent_cold_record","reason":"命中了感冒记录意图"}',
           ].join("\n"),
@@ -284,10 +321,42 @@ async function defaultSummarizeAnswer(input: {
   return rawText.trim()
 }
 
+async function defaultSummarizeVisitPrep(input: {
+  question: string
+  sources: AssistantSource[]
+  context: string
+}) {
+  const rawText = await createDashscopeChatCompletion({
+    model: "qwen-plus",
+    messages: [
+      {
+        role: "system",
+        content: [
+          "你是家庭健康资料助手，只能基于给定资料整理就医前建议问题清单，不能诊断。",
+          "输出 5-8 条中文问题，使用编号列表。",
+          "问题应覆盖：当前症状/既往记录、在用药、过敏风险、是否需要检查、何时复诊。",
+          "必须基于资料，不要编造。资料不足时给出通用但安全的提问建议。",
+        ].join("\n"),
+      },
+      {
+        role: "user",
+        content: [
+          `用户问题：${input.question}`,
+          `资料：${input.context}`,
+          "请输出就医前建议向医生咨询的问题清单。",
+        ].join("\n\n"),
+      },
+    ],
+  })
+
+  return rawText.trim()
+}
+
 const defaultDependencies: AssistantDependencies = {
   classifyQuestion: defaultClassifyQuestion,
   selectMedicines: defaultSelectMedicines,
   summarizeAnswer: defaultSummarizeAnswer,
+  summarizeVisitPrep: defaultSummarizeVisitPrep,
   listMembers,
   listMedicalRecords,
   listMedicines,
@@ -450,6 +519,44 @@ export async function resolveAssistantQuery(
       return {
         intent: classification.intent,
         answer: fallbackAnswer(classification.intent, sources),
+        sources,
+      }
+    }
+  }
+
+  if (classification.intent === "visit_prep_query") {
+    const [members, records, medicines, allergyRecords] = await Promise.all([
+      runtime.listMembers(ctx),
+      runtime.listMedicalRecords(ctx),
+      runtime.listMedicines(ctx),
+      runtime.listAllergyRecords(ctx),
+    ])
+    const sources = buildVisitPrepSources(members, records, medicines, allergyRecords)
+
+    if (sources.length === 0) {
+      return {
+        intent: classification.intent,
+        answer: NO_RESULT_MESSAGE,
+        sources: [],
+      }
+    }
+
+    try {
+      const answer = await runtime.summarizeVisitPrep({
+        question: normalizedQuestion,
+        sources,
+        context: buildContext(classification.intent, sources),
+      })
+
+      return {
+        intent: classification.intent,
+        answer: answer || fallbackVisitPrepAnswer(sources),
+        sources,
+      }
+    } catch {
+      return {
+        intent: classification.intent,
+        answer: fallbackVisitPrepAnswer(sources),
         sources,
       }
     }

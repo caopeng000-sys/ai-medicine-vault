@@ -3,6 +3,7 @@ import type { AllergySeverity } from "@prisma/client"
 
 import type { RepositoryContext } from "@/features/medicine-vault/auth-context"
 import type {
+  AiConversationRecord,
   AllergyRecord,
   MedicalRecord,
   Member,
@@ -10,6 +11,7 @@ import type {
   VisitPreparation,
 } from "@/features/medicine-vault/data"
 import {
+  aiConversations as mockAiConversations,
   allergyRecords as mockAllergyRecords,
   medicalRecords as mockMedicalRecords,
   members as mockMembers,
@@ -47,6 +49,8 @@ export type PaginatedMedicines = Readonly<{
 }>
 
 export { DEFAULT_MEDICINE_PAGE_SIZE } from "@/features/medicine-vault/medicine-pagination"
+
+export const DEFAULT_AI_CONVERSATION_LIMIT = 10
 
 function toDateOnly(value: string) {
   return new Date(`${value}T00:00:00.000Z`)
@@ -167,6 +171,7 @@ function mapAllergyRecord(record: {
 }
 
 function mapVisitPreparation(item: {
+  id?: string
   userId: string
   memberId: string
   concern: string
@@ -174,12 +179,81 @@ function mapVisitPreparation(item: {
   questions: string[]
 }): VisitPreparation {
   return {
+    id: item.id,
     userId: item.userId,
     memberId: item.memberId,
     concern: item.concern,
     summary: item.summary,
     questions: item.questions,
   }
+}
+
+function mapAiConversation(item: {
+  id: string
+  userId: string
+  question: string
+  answer: string
+  intent: string
+  message: string | null
+  sources: unknown
+  createdAt: Date
+}): AiConversationRecord {
+  const sources = Array.isArray(item.sources)
+    ? item.sources.filter(
+        (source): source is { label: string; detail: string } =>
+          typeof source === "object" &&
+          source !== null &&
+          "label" in source &&
+          "detail" in source &&
+          typeof source.label === "string" &&
+          typeof source.detail === "string",
+      )
+    : []
+
+  return {
+    id: item.id,
+    userId: item.userId,
+    question: item.question,
+    answer: item.answer,
+    intent: item.intent,
+    message: item.message ?? undefined,
+    sources,
+    createdAt: item.createdAt.toISOString(),
+  }
+}
+
+function trimMockAiConversations(userId: string, limit = DEFAULT_AI_CONVERSATION_LIMIT) {
+  let count = mockAiConversations.filter((item) => item.userId === userId).length
+
+  while (count > limit) {
+    const index = mockAiConversations.findLastIndex((item) => item.userId === userId)
+    if (index === -1) {
+      break
+    }
+
+    mockAiConversations.splice(index, 1)
+    count -= 1
+  }
+}
+
+async function trimDatabaseAiConversations(ctx: RepositoryContext, prisma: NonNullable<ReturnType<typeof getPrismaClient>>) {
+  const items = await prisma.aiConversation.findMany({
+    where: { userId: ctx.userId },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  })
+
+  if (items.length <= DEFAULT_AI_CONVERSATION_LIMIT) {
+    return
+  }
+
+  await prisma.aiConversation.deleteMany({
+    where: {
+      id: {
+        in: items.slice(DEFAULT_AI_CONVERSATION_LIMIT).map((item) => item.id),
+      },
+    },
+  })
 }
 
 function splitHospitalField(value: string) {
@@ -507,6 +581,143 @@ export async function listVisitPreparations(ctx: RepositoryContext, memberId?: s
     return mockVisitPreparations
       .filter((item) => item.userId === ctx.userId)
       .filter((item) => (memberId ? item.memberId === memberId : true))
+  }
+}
+
+export async function createVisitPreparation(
+  ctx: RepositoryContext,
+  input: Readonly<{
+    memberId: string
+    concern: string
+    summary: string
+    questions: string[]
+  }>,
+) {
+  const prisma = getPrismaClient()
+
+  if (!prisma) {
+    assertMockMemberBelongsToUser(ctx, input.memberId)
+
+    const preparation: VisitPreparation = {
+      userId: ctx.userId,
+      memberId: input.memberId,
+      concern: input.concern,
+      summary: input.summary,
+      questions: input.questions,
+    }
+
+    mockVisitPreparations.unshift(preparation)
+    return preparation
+  }
+
+  try {
+    await assertDatabaseMemberBelongsToUser(ctx, input.memberId)
+
+    const item = await prisma.visitPreparation.create({
+      data: {
+        userId: ctx.userId,
+        memberId: input.memberId,
+        concern: input.concern,
+        summary: input.summary,
+        questions: input.questions,
+      },
+    })
+
+    return mapVisitPreparation(item)
+  } catch {
+    assertMockMemberBelongsToUser(ctx, input.memberId)
+
+    const preparation: VisitPreparation = {
+      userId: ctx.userId,
+      memberId: input.memberId,
+      concern: input.concern,
+      summary: input.summary,
+      questions: input.questions,
+    }
+
+    mockVisitPreparations.unshift(preparation)
+    return preparation
+  }
+}
+
+export async function listAiConversations(ctx: RepositoryContext, limit = DEFAULT_AI_CONVERSATION_LIMIT) {
+  const prisma = getPrismaClient()
+
+  if (!prisma) {
+    return mockAiConversations.filter((item) => item.userId === ctx.userId).slice(0, limit)
+  }
+
+  try {
+    const items = await prisma.aiConversation.findMany({
+      where: { userId: ctx.userId },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+    })
+
+    return items.map(mapAiConversation)
+  } catch {
+    return mockAiConversations.filter((item) => item.userId === ctx.userId).slice(0, limit)
+  }
+}
+
+export async function createAiConversation(
+  ctx: RepositoryContext,
+  input: Readonly<{
+    question: string
+    answer: string
+    intent: string
+    message?: string
+    sources: ReadonlyArray<{ label: string; detail: string }>
+  }>,
+) {
+  const prisma = getPrismaClient()
+
+  if (!prisma) {
+    const conversation: AiConversationRecord = {
+      id: `conversation-${Date.now()}`,
+      userId: ctx.userId,
+      question: input.question,
+      answer: input.answer,
+      intent: input.intent,
+      message: input.message,
+      sources: input.sources,
+      createdAt: new Date().toISOString(),
+    }
+
+    mockAiConversations.unshift(conversation)
+    trimMockAiConversations(ctx.userId)
+    return conversation
+  }
+
+  try {
+    const item = await prisma.aiConversation.create({
+      data: {
+        userId: ctx.userId,
+        question: input.question,
+        answer: input.answer,
+        intent: input.intent,
+        message: input.message,
+        sources: input.sources,
+      },
+    })
+
+    await trimDatabaseAiConversations(ctx, prisma)
+    return mapAiConversation(item)
+  } catch {
+    const conversation: AiConversationRecord = {
+      id: `conversation-${Date.now()}`,
+      userId: ctx.userId,
+      question: input.question,
+      answer: input.answer,
+      intent: input.intent,
+      message: input.message,
+      sources: input.sources,
+      createdAt: new Date().toISOString(),
+    }
+
+    mockAiConversations.unshift(conversation)
+    trimMockAiConversations(ctx.userId)
+    return conversation
   }
 }
 

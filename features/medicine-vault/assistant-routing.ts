@@ -1,6 +1,11 @@
 import type { AllergyRecord, MedicalRecord, Medicine, Member } from "./data"
 
-export type AssistantIntent = "recent_cold_record" | "medicine_query" | "allergy_query" | "unsupported"
+export type AssistantIntent =
+  | "recent_cold_record"
+  | "medicine_query"
+  | "allergy_query"
+  | "visit_prep_query"
+  | "unsupported"
 
 export type AssistantIntentParseResult = Readonly<{
   intent: AssistantIntent
@@ -20,6 +25,11 @@ export type AssistantMedicineMatch = Readonly<{
 export type AssistantAllergyMatch = Readonly<{
   record: AllergyRecord
   member?: Member
+}>
+
+export type AssistantVisitPrepSource = Readonly<{
+  label: string
+  detail: string
 }>
 
 const COLD_KEYWORDS = ["感冒", "上呼吸道感染", "流涕", "鼻塞", "咳嗽", "发热"]
@@ -57,6 +67,7 @@ const SUPPORTED_INTENTS = new Set<AssistantIntent>([
   "recent_cold_record",
   "medicine_query",
   "allergy_query",
+  "visit_prep_query",
 ])
 
 export function parseAssistantIntent(rawText: string): AssistantIntentParseResult {
@@ -83,6 +94,22 @@ export function detectAssistantIntent(question: string): AssistantIntent {
 
   if (!normalized) {
     return "unsupported"
+  }
+
+  const visitPrepKeywords = [
+    "看医生前",
+    "就医前",
+    "复诊前",
+    "就诊前",
+    "看病前",
+    "准备哪些问题",
+    "应该问",
+    "要问医生",
+    "就医准备",
+    "就诊准备",
+  ]
+  if (visitPrepKeywords.some((keyword) => normalized.includes(keyword))) {
+    return "visit_prep_query"
   }
 
   const coldQuestionKeywords = ["感冒", "发烧", "发热", "咳嗽", "鼻塞", "流涕", "上呼吸道感染"]
@@ -154,4 +181,40 @@ export function buildAllergyMatches(records: AllergyRecord[], members: Member[])
       record,
       member: members.find((item) => item.id === record.memberId),
     }))
+}
+
+export function buildVisitPrepSources(
+  members: Member[],
+  records: MedicalRecord[],
+  medicines: Medicine[],
+  allergies: AllergyRecord[],
+): AssistantVisitPrepSource[] {
+  const memberNameById = new Map(members.map((member) => [member.id, member.name]))
+  const sources: AssistantVisitPrepSource[] = []
+
+  for (const record of records.slice().sort((a, b) => b.visitedAt.localeCompare(a.visitedAt)).slice(0, 3)) {
+    sources.push({
+      label: `病历 · ${memberNameById.get(record.memberId) ?? "未知成员"}`,
+      detail: `${record.visitedAt} · ${record.diagnosis} · ${record.symptoms}`,
+    })
+  }
+
+  for (const { record, member } of buildAllergyMatches(allergies, members)) {
+    sources.push({
+      label: `过敏 · ${record.allergen}`,
+      detail: `${member?.name ?? "未知成员"} · ${record.severity} · ${record.reaction}`,
+    })
+  }
+
+  for (const medicine of medicines
+    .slice()
+    .sort((a, b) => a.expiresAt.localeCompare(b.expiresAt))
+    .slice(0, 5)) {
+    sources.push({
+      label: `药品 · ${medicine.name}`,
+      detail: `${memberNameById.get(medicine.memberId) ?? "未知成员"} · ${medicine.purpose} · 有效期 ${medicine.expiresAt}`,
+    })
+  }
+
+  return sources
 }

@@ -53,6 +53,21 @@ export const createAllergyRecordSchema = z.object({
   note: z.string().trim().default(""),
 })
 
+export const vaultSearchSchema = z.object({
+  query: z.string().trim().min(1, "请输入搜索关键词。"),
+})
+
+export const generateVisitPreparationSchema = z.object({
+  memberId: z.string().trim().min(1, "请选择成员。"),
+  concern: z.string().trim().min(1, "请描述就医场景或关注点。"),
+})
+
+export const visitPreparationGeneratedSchema = z.object({
+  concern: z.string().trim().min(1),
+  summary: z.string().trim().min(1),
+  questions: z.array(z.string().trim().min(1)).min(1),
+})
+
 export const extractedMedicineSchema = z.object({
   name: z.string().trim().default(""),
   category: z.string().trim().default(""),
@@ -74,4 +89,7 @@ export type UpdateMemberInput = z.infer<typeof updateMemberSchema>
 export type CreateMedicalRecordInput = z.infer<typeof createMedicalRecordSchema>
 export type CreateMedicineInput = z.infer<typeof createMedicineSchema>
 export type CreateAllergyRecordInput = z.infer<typeof createAllergyRecordSchema>
+export type GenerateVisitPreparationInput = z.infer<typeof generateVisitPreparationSchema>
+export type VaultSearchInput = z.infer<typeof vaultSearchSchema>
+export type VisitPreparationGenerated = z.infer<typeof visitPreparationGeneratedSchema>
 export type ExtractedMedicineData = z.infer<typeof extractedMedicineSchema>
